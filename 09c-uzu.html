@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>09-C 渦 — TV MAGNET</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { width:1920px; height:1080px; overflow:hidden; background:#03040a; font-family:'Helvetica Neue',Arial,sans-serif; color:#e0e0e0; }
+#back { position:fixed; top:18px; left:28px; font-size:13px; color:#333; text-decoration:none; letter-spacing:2px; z-index:200; }
+#back:hover { color:#666; }
+#title { position:fixed; top:18px; left:50%; transform:translateX(-50%); font-size:12px; color:#222; letter-spacing:6px; z-index:200; }
+canvas { position:absolute; inset:0; }
+#ui { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:40px; z-index:100; }
+.btn { padding:11px 30px; border:1.5px solid #2a2a3a; background:linear-gradient(180deg,#141420,#0e0e1a); color:#777; font-size:14px; letter-spacing:3px; cursor:pointer; border-radius:4px; transition:all .2s; }
+.btn:hover { border-color:#444; color:#bbb; }
+#btn-spin { border-color:#00ccaa; color:#44ffdd; padding:13px 56px; font-size:17px; font-weight:700; letter-spacing:5px; }
+#btn-spin:hover { box-shadow:0 0 20px rgba(0,220,180,.4); }
+#btn-spin:disabled { border-color:#222; color:#333; box-shadow:none; cursor:not-allowed; }
+.lbl { font-size:13px; color:#444; letter-spacing:3px; }
+.cnt { width:52px; height:38px; background:#0a0a14; border:1px solid #222; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:700; border-radius:3px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<a href="index.html" id="back">← INDEX</a>
+<div id="title">09-C — 渦 / UZU</div>
+<div id="ui">
+  <span class="lbl">プレート数</span>
+  <button class="btn" id="btn-m">－</button>
+  <div class="cnt" id="cnt">4</div>
+  <button class="btn" id="btn-p">＋</button>
+  <button class="btn" id="btn-spin">VORTEX</button>
+</div>
+<script>
+const ITEMS=[{t:'アニソン歌手',p:'N'},{t:'方言で話す',p:'S'},{t:'1分間無言',p:'N'},{t:'ロボット口調',p:'S'},{t:'囁き声',p:'N'},{t:'怒り口調',p:'S'},{t:'モノマネ',p:'N'},{t:'超早口',p:'S'},{t:'関西弁',p:'N'},{t:'敬語禁止',p:'S'}];
+const W=1920,H=1080,CX=960,CY=520;
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+canvas.width=W; canvas.height=H;
+
+let n=4,busy=false,plates=[],vortexSpin=0,coreIntensity=0,resultText='',resultClass='',showResult=false,resultAlpha=0;
+
+function buildPlates(){
+  plates=[];
+  const startR=420;
+  for(let i=0;i<n;i++){
+    const baseAngle=-Math.PI/2+(i/n)*Math.PI*2;
+    const item=ITEMS[i%ITEMS.length];
+    plates.push({baseAngle,angle:baseAngle,r:startR,targetAngle:baseAngle,speed:0.012,spiralRate:0,locked:false,consumed:false,item,alpha:1,cycleT:i*3});
+  }
+}
+
+function getSpiralPos(angle,r){ return {x:CX+Math.cos(angle)*r, y:CY+Math.sin(angle)*r}; }
+
+function drawCore(t){
+  // outer vortex bands
+  for(let band=0;band<5;band++){
+    const br=30+band*22, speed=(5-band)*0.012, a=t*speed;
+    ctx.beginPath(); ctx.arc(CX,CY,br,0,Math.PI*2);
+    const alpha=0.1+band*0.04+coreIntensity*0.3;
+    ctx.strokeStyle=`rgba(0,${180+band*15},${150+band*10},${alpha})`; ctx.lineWidth=3+coreIntensity*4; ctx.stroke();
+  }
+  // center
+  const cg=ctx.createRadialGradient(CX,CY,0,CX,CY,30);
+  cg.addColorStop(0,`rgba(${150+coreIntensity*100},255,${200+coreIntensity*55},${0.8+coreIntensity*0.2})`);
+  cg.addColorStop(0.6,'rgba(0,80,60,0.9)'); cg.addColorStop(1,'rgba(0,20,15,1)');
+  ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(CX,CY,30,0,Math.PI*2); ctx.fill();
+  // spinning spokes
+  for(let s=0;s<6;s++){
+    const sa=t*0.05+s*Math.PI/3;
+    ctx.beginPath(); ctx.moveTo(CX,CY); ctx.lineTo(CX+Math.cos(sa)*140,CY+Math.sin(sa)*140);
+    ctx.strokeStyle=`rgba(0,255,200,${0.04+coreIntensity*0.08})`; ctx.lineWidth=1; ctx.stroke();
+  }
+}
+
+function drawPlate(p,t){
+  if(p.consumed) return;
+  const pos=getSpiralPos(p.angle,p.r);
+  ctx.save(); ctx.translate(pos.x,pos.y); ctx.rotate(p.angle+Math.PI/2); ctx.globalAlpha=p.alpha;
+  const w=190,h=84,pol=p.item.p;
+  ctx.fillStyle=pol==='N'?'rgba(255,30,60,0.12)':'rgba(30,100,255,0.12)';
+  ctx.strokeStyle=pol==='N'?`rgba(255,80,100,0.6)`:`rgba(80,130,255,0.6)`;
+  ctx.lineWidth=1.5; ctx.beginPath(); ctx.roundRect(-w/2,-h/2,w,h,6); ctx.fill(); ctx.stroke();
+  ctx.fillStyle=pol==='N'?'#ffaaaa':'#aabbff';
+  ctx.font='bold 20px Helvetica Neue,Arial'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.rotate(-p.angle-Math.PI/2);
+  ctx.fillText(p.item.t,0,-7);
+  ctx.font='11px Helvetica Neue,Arial'; ctx.fillStyle=pol==='N'?'rgba(255,150,160,.7)':'rgba(150,170,255,.7)';
+  ctx.fillText(pol+' 極',0,10);
+  ctx.restore();
+}
+
+let globalT=0,lockedCount=0,results=[];
+function frame(){
+  ctx.clearRect(0,0,W,H);
+  // faint grid
+  for(let x=0;x<W;x+=80) for(let y=0;y<H;y+=80){ ctx.beginPath(); ctx.arc(x,y,1,0,Math.PI*2); ctx.fillStyle='rgba(0,60,40,.08)'; ctx.fill(); }
+  // spiral trail
+  plates.forEach(p=>{
+    if(p.locked||p.consumed) return;
+    ctx.beginPath();
+    for(let step=0;step<=60;step++){
+      const tr=p.r+step*2,ta=p.angle-step*0.04;
+      const tx=CX+Math.cos(ta)*tr,ty=CY+Math.sin(ta)*tr;
+      if(step===0) ctx.moveTo(tx,ty); else ctx.lineTo(tx,ty);
+    }
+    ctx.strokeStyle=`rgba(0,180,140,0.06)`; ctx.lineWidth=1; ctx.stroke();
+  });
+  drawCore(globalT);
+  plates.forEach(p=>drawPlate(p,globalT));
+  // update
+  plates.forEach(p=>{
+    if(p.locked||p.consumed) return;
+    p.angle+=p.speed+p.spiralRate*globalT*0.0001;
+    if(p.spiralRate>0){ p.r=Math.max(32,p.r-p.spiralRate*0.6); if(p.r<=35){ absorb(p); } }
+    else { // idle cycling
+      p.cycleT++;
+      if(p.cycleT%8===0){ const idx=Math.floor(p.cycleT/8)%ITEMS.length; p.item=ITEMS[idx]; }
+    }
+  });
+  coreIntensity=Math.max(0,coreIntensity-.006);
+  vortexSpin+=0.02;
+  // result fade
+  if(showResult){ resultAlpha=Math.min(1,resultAlpha+0.04); }
+  if(resultAlpha>0){
+    ctx.save(); ctx.globalAlpha=resultAlpha;
+    ctx.font=`900 ${results.length>3?'42':'60'}px Helvetica Neue,Arial`;
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle=resultClass==='accident'?'#ff3344':resultClass==='bonus'?'#3388ff':'#ffffff';
+    ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=40;
+    ctx.fillText(resultText,CX,CY);
+    ctx.restore();
+  }
+  globalT++; requestAnimationFrame(frame);
+}
+
+function absorb(p){
+  p.consumed=true; lockedCount++; coreIntensity=Math.min(1,coreIntensity+0.3);
+  results.push(p.item);
+  if(lockedCount===plates.length) setTimeout(finalize,500);
+}
+function finalize(){
+  const nN=results.filter(r=>r.p==='N').length,nS=results.filter(r=>r.p==='S').length;
+  if(nN===results.length){resultText='⚡ N極フルコンプ — 大事故 ⚡';resultClass='accident';}
+  else if(nS===results.length){resultText='⚡ S極フルコンプ — 大事故 ⚡';resultClass='accident';}
+  else if(nN===nS&&results.length%2===0){resultText='✦ 完全対極 — ボーナス ✦';resultClass='bonus';}
+  else{resultText=results.map(r=>r.t).join(' × ');resultClass='';}
+  showResult=true; busy=false; document.getElementById('btn-spin').disabled=false;
+}
+
+function startVortex(){
+  if(busy)return; busy=true; document.getElementById('btn-spin').disabled=true;
+  showResult=false; resultAlpha=0; lockedCount=0; results=[]; coreIntensity=0;
+  buildPlates();
+  setTimeout(()=>{ plates.forEach((p,i)=>setTimeout(()=>{ p.spiralRate=0.4+i*0.1; },i*300)); },600);
+}
+document.getElementById('btn-m').onclick=()=>{if(n>1&&!busy){n--;document.getElementById('cnt').textContent=n;showResult=false;resultAlpha=0;buildPlates();}};
+document.getElementById('btn-p').onclick=()=>{if(n<6&&!busy){n++;document.getElementById('cnt').textContent=n;showResult=false;resultAlpha=0;buildPlates();}};
+document.getElementById('btn-spin').onclick=startVortex;
+buildPlates(); frame();
+</script>
+<script>(function(){function fit(){var s=Math.min(window.innerWidth/1920,window.innerHeight/1080);document.body.style.transform="scale("+s+")";document.body.style.transformOrigin="top left";document.documentElement.style.overflow="hidden";}fit();window.addEventListener("resize",fit);})();</script>
+</body>
+</html>

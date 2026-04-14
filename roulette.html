@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>TV MAGNET — ROULETTE</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { width:1920px; height:1080px; overflow:hidden; background:#04050a; font-family:'Helvetica Neue',Arial,sans-serif; color:#e0e0e0; }
+#back { position:fixed; top:18px; left:28px; font-size:13px; color:#333; text-decoration:none; letter-spacing:2px; z-index:200; }
+#back:hover { color:#666; }
+#title { position:fixed; top:18px; left:50%; transform:translateX(-50%); font-size:14px; color:#1e1e2a; letter-spacing:10px; z-index:200; font-weight:700; }
+#rehearsal-badge { position:fixed; top:18px; right:28px; font-size:11px; color:#444; letter-spacing:4px; z-index:200; display:none; }
+#rehearsal-badge.active { color:#aa66ff; display:block; }
+
+canvas { position:absolute; inset:0; z-index:0; pointer-events:none; }
+
+/* plates — fixed positions, no movement */
+.plate-wrap { position:absolute; transform:translate(-50%,-50%); z-index:20; }
+.plate-box {
+  width:220px; height:104px;
+  background:linear-gradient(145deg,#0e0e20,#090916);
+  border:2px solid rgba(51,136,255,.55); border-radius:6px;
+  box-shadow:0 0 28px rgba(51,100,255,.3), 0 0 60px rgba(30,70,200,.12);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+  position:relative; transition:border-color .3s, box-shadow .3s;
+}
+/* locked states — colored by result type */
+.plate-box.locked.atari  {
+  border-color:rgba(255,200,68,.9);
+  box-shadow:0 0 40px rgba(255,200,68,.55), 0 0 90px rgba(255,160,0,.25);
+}
+.plate-box.locked.futsuu {
+  border-color:rgba(80,160,255,.95);
+  box-shadow:0 0 40px rgba(51,136,255,.6), 0 0 90px rgba(30,100,255,.25);
+}
+.plate-box.locked.hazure {
+  border-color:rgba(60,80,130,.9);
+  box-shadow:0 0 22px rgba(40,60,110,.45);
+}
+
+.p-genre {
+  font-size:11px; letter-spacing:3px; color:#3a3a60; text-transform:uppercase;
+  transition:color .3s;
+}
+.plate-box.locked.atari  .p-genre { color:#806020; }
+.plate-box.locked.futsuu .p-genre { color:#2a5090; }
+.plate-box.locked.hazure .p-genre { color:#334455; }
+
+.p-text {
+  font-size:24px; font-weight:700; letter-spacing:2px; color:#aabbdd;
+  text-align:center; padding:0 10px; line-height:1.2;
+  max-width:210px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  transition:color .3s, text-shadow .3s;
+  text-shadow:0 0 12px rgba(80,140,255,.35);
+}
+.plate-box.locked.atari  .p-text { color:#ffee88; text-shadow:0 0 20px rgba(255,200,0,.6); font-size:26px; }
+.plate-box.locked.futsuu .p-text { color:#ccdeff; text-shadow:0 0 18px rgba(80,160,255,.6); font-size:26px; }
+.plate-box.locked.hazure .p-text { color:#7788aa; text-shadow:none; }
+
+.p-type { font-size:11px; letter-spacing:4px; color:#2a2a44; transition:color .3s; }
+.plate-box.locked.atari  .p-type { color:#ddaa22; }
+.plate-box.locked.futsuu .p-type { color:#5599dd; }
+.plate-box.locked.hazure .p-type { color:#445566; }
+
+.p-flash { position:absolute; inset:0; background:#fff; opacity:0; border-radius:6px; pointer-events:none; }
+
+/* result — bottom center */
+#result-area {
+  position:fixed; bottom:76px; left:50%; transform:translateX(-50%);
+  z-index:60; pointer-events:none; text-align:center;
+  opacity:0; transition:opacity .6s;
+  white-space:nowrap;
+}
+#result-area.visible { opacity:1; }
+#result-type {
+  font-size:40px; font-weight:900; letter-spacing:14px; color:#555;
+}
+#result-area.atari  #result-type { color:#ffcc44; text-shadow:0 0 28px rgba(255,200,68,.6); }
+#result-area.futsuu #result-type { color:#3388ff; text-shadow:0 0 28px rgba(51,136,255,.6); }
+#result-area.hazure #result-type { color:#445566; }
+#result-item {
+  margin-top:10px; letter-spacing:4px; color:#444;
+  white-space:normal; max-width:1560px; line-height:1.5; text-align:center;
+}
+#result-area.atari  #result-item { color:#aa8820; }
+#result-area.futsuu #result-item { color:#2255aa; }
+#result-area.hazure #result-item { color:#3a4a5a; }
+
+#standby-label {
+  position:fixed; bottom:80px; left:50%; transform:translateX(-50%);
+  font-size:20px; letter-spacing:8px; color:#1e1e2a; z-index:55; pointer-events:none;
+}
+
+#ui { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:40px; z-index:100; }
+.btn { padding:11px 30px; border:1.5px solid #2a2a3a; background:linear-gradient(180deg,#141420,#0e0e1a); color:#777; font-size:14px; letter-spacing:3px; cursor:pointer; border-radius:4px; transition:all .2s; }
+.btn:hover { border-color:#444; color:#bbb; }
+#btn-spin { border-color:#3344aa; color:#5566cc; padding:13px 56px; font-size:17px; font-weight:700; letter-spacing:5px; }
+#btn-spin:hover { box-shadow:0 0 20px rgba(50,80,200,.35); border-color:#5566cc; }
+#btn-spin:disabled { border-color:#1a1a28; color:#2a2a3a; box-shadow:none; cursor:not-allowed; }
+.lbl { font-size:13px; color:#333; letter-spacing:3px; }
+.cnt { width:52px; height:38px; background:#0a0a14; border:1px solid #1e1e2a; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:700; border-radius:3px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="standby-label">— STANDBY —</div>
+<div id="result-area">
+  <div id="result-type"></div>
+  <div id="result-item"></div>
+</div>
+<a href="home.html" id="back">← HOME</a>
+<div id="title">TV MAGNET</div>
+<div id="rehearsal-badge">REHEARSAL</div>
+<div id="ui">
+  <span class="lbl">プレート数</span>
+  <button class="btn" id="btn-m">－</button>
+  <div class="cnt" id="cnt">4</div>
+  <button class="btn" id="btn-p">＋</button>
+  <button class="btn" id="btn-spin">SPIN</button>
+</div>
+<script>
+const STORAGE_KEY='tvmagnet';
+const DEFAULT={
+  plates:Array.from({length:6},(_,i)=>({genre:`プレート${i+1}`,atari:[],futsuu:[],hazure:[]})),
+  probability:{atari:{pct:30,priority:'mid'},futsuu:{pct:40,priority:'weak'},hazure:{pct:30,priority:'strong'}},
+  rehearsal:{enabled:false,sequence:Array(10).fill(null),index:0},
+  plateCount:4
+};
+
+function loadSettings(){
+  try{
+    const r=localStorage.getItem(STORAGE_KEY);
+    if(r){
+      const p=JSON.parse(r);
+      const s=JSON.parse(JSON.stringify(DEFAULT));
+      if(p.plates) s.plates=p.plates;
+      if(p.probability) s.probability=Object.assign(s.probability,p.probability);
+      if(p.rehearsal) s.rehearsal=Object.assign(s.rehearsal,p.rehearsal);
+      if(p.plateCount!=null) s.plateCount=p.plateCount;
+      return s;
+    }
+  }catch(e){}
+  return JSON.parse(JSON.stringify(DEFAULT));
+}
+function saveSettings(s){ localStorage.setItem(STORAGE_KEY,JSON.stringify(s)); }
+
+const CX=960,CY=540,PLATE_R=380,CORE_R=110;
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+cv.width=1920; cv.height=1080;
+let n=4,busy=false,plateData=[],shockwaves=[],pShockwaves=[],coreCharge=0,globalT=0;
+
+function getAngles(count){ return Array.from({length:count},(_,i)=>-Math.PI/2+(i/count)*Math.PI*2); }
+
+function getAllItems(plate){
+  return [
+    ...(plate.atari||[]).map(t=>({text:t,type:'atari'})),
+    ...(plate.futsuu||[]).map(t=>({text:t,type:'futsuu'})),
+    ...(plate.hazure||[]).map(t=>({text:t,type:'hazure'}))
+  ];
+}
+function pickFromPool(plate,type){
+  const pool=type==='atari'?(plate.atari||[]):type==='futsuu'?(plate.futsuu||[]):(plate.hazure||[]);
+  if(pool.length>0) return {text:pool[Math.floor(Math.random()*pool.length)],type};
+  const all=getAllItems(plate);
+  if(all.length>0) return all[Math.floor(Math.random()*all.length)];
+  return {text:plate.genre||'?',type};
+}
+function pickResultType(settings){
+  const {atari,futsuu,hazure}=settings.probability;
+  const r=Math.random()*100;
+  if(r<(atari.pct||30)) return 'atari';
+  if(r<(atari.pct||30)+(futsuu.pct||40)) return 'futsuu';
+  return 'hazure';
+}
+
+function build(){
+  document.querySelectorAll('.plate-wrap').forEach(e=>e.remove());
+  plateData=[];
+  const settings=loadSettings();
+  getAngles(n).forEach((ang,i)=>{
+    const cfg=settings.plates[i]||DEFAULT.plates[i%6];
+    const allItems=getAllItems(cfg);
+    const px=CX+Math.cos(ang)*PLATE_R, py=CY+Math.sin(ang)*PLATE_R;
+    const wrap=document.createElement('div'); wrap.className='plate-wrap';
+    wrap.style.left=px+'px'; wrap.style.top=py+'px';
+    const initText=allItems.length>0?allItems[0].text:'—';
+    const box=document.createElement('div'); box.className='plate-box';
+    box.innerHTML=
+      `<div class="p-genre">${cfg.genre||`プレート${i+1}`}</div>`+
+      `<div class="p-text">${initText}</div>`+
+      `<div class="p-type">—</div>`+
+      `<div class="p-flash"></div>`;
+    wrap.appendChild(box); document.body.appendChild(wrap);
+    plateData.push({wrap,box,px,py,angle:ang,cfg,allItems,cycleIdx:0,state:'idle',locked:false,lockedType:null,assignedItem:null});
+  });
+  coreCharge=0;
+  const rb=document.getElementById('rehearsal-badge');
+  const s=loadSettings();
+  rb.className=(s.rehearsal&&s.rehearsal.enabled)?'active':'';
+}
+
+// ── canvas loop ──────────────────────────────────
+function drawFrame(){
+  ctx.clearRect(0,0,1920,1080);
+
+  // bg grid dots
+  for(let x=0;x<1920;x+=100) for(let y=0;y<1080;y+=100){
+    ctx.beginPath(); ctx.arc(x,y,1.2,0,Math.PI*2);
+    ctx.fillStyle='rgba(35,55,90,.07)'; ctx.fill();
+  }
+
+  // magnetic field lines (core → each plate)
+  plateData.forEach(pd=>{
+    const sx=CX+Math.cos(pd.angle)*CORE_R, sy=CY+Math.sin(pd.angle)*CORE_R;
+    if(pd.locked){
+      const col=pd.lockedType==='atari'?'255,200,68':pd.lockedType==='futsuu'?'51,136,255':'55,75,115';
+      const pulse=0.35+0.18*Math.sin(globalT*0.04+pd.angle);
+      // glow layer
+      ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(pd.px,pd.py);
+      ctx.strokeStyle=`rgba(${col},${pulse*0.22})`; ctx.lineWidth=9; ctx.stroke();
+      // main line
+      ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(pd.px,pd.py);
+      ctx.strokeStyle=`rgba(${col},${pulse})`; ctx.lineWidth=1.8; ctx.stroke();
+    } else {
+      // animated dashes flowing core→plate
+      const pulse=0.28+0.12*Math.sin(globalT*0.05+pd.angle*1.7);
+      ctx.save();
+      ctx.setLineDash([10,14]);
+      ctx.lineDashOffset=-(globalT*0.7)%24;
+      ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(pd.px,pd.py);
+      ctx.strokeStyle=`rgba(51,100,220,${pulse})`; ctx.lineWidth=2; ctx.stroke();
+      ctx.restore();
+    }
+  });
+
+  // per-plate shockwaves (on lock)
+  pShockwaves=pShockwaves.filter(sw=>{
+    sw.r+=11; sw.a-=0.045;
+    if(sw.a<=0) return false;
+    ctx.beginPath(); ctx.arc(sw.x,sw.y,sw.r,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(${sw.col},${sw.a})`; ctx.lineWidth=2.5; ctx.stroke();
+    return true;
+  });
+
+  // core shockwaves
+  shockwaves=shockwaves.filter(sw=>{
+    sw.r+=9; sw.a-=0.028;
+    if(sw.a<=0) return false;
+    ctx.beginPath(); ctx.arc(CX,CY,sw.r,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(80,160,255,${sw.a})`; ctx.lineWidth=2; ctx.stroke();
+    return true;
+  });
+
+  // core
+  const lockedN=plateData.filter(p=>p.locked).length;
+  const ratio=plateData.length>0?lockedN/plateData.length:0;
+  const cg=ctx.createRadialGradient(CX,CY,0,CX,CY,CORE_R);
+  const cr=Math.round(30+coreCharge*180+ratio*60);
+  const cg2=Math.round(90+coreCharge*100);
+  cg.addColorStop(0,`rgba(${cr},${cg2},255,${0.75+coreCharge*0.25})`);
+  cg.addColorStop(0.45,'rgba(8,22,65,.92)');
+  cg.addColorStop(1,'rgba(4,5,10,1)');
+  ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(CX,CY,CORE_R,0,Math.PI*2); ctx.fill();
+  // core ring
+  ctx.beginPath(); ctx.arc(CX,CY,CORE_R,0,Math.PI*2);
+  ctx.strokeStyle=`rgba(${60+coreCharge*160},${130+coreCharge*80},255,${0.4+coreCharge*.6+ratio*.2})`;
+  ctx.lineWidth=2.5; ctx.stroke();
+  // rotating arcs
+  const spd=0.025+ratio*0.025;
+  for(let a=0;a<6;a++){
+    const ang=globalT*spd+a*Math.PI/3;
+    ctx.beginPath(); ctx.arc(CX,CY,CORE_R-6,ang,ang+0.4);
+    ctx.strokeStyle=`rgba(80,180,255,${0.12+coreCharge*.25+ratio*.1})`; ctx.lineWidth=2; ctx.stroke();
+  }
+
+  coreCharge=Math.max(0,coreCharge-0.012);
+  globalT++; requestAnimationFrame(drawFrame);
+}
+
+// ── cycling ─────────────────────────────────────
+let cycleIv;
+function startCycle(speed){
+  clearInterval(cycleIv);
+  cycleIv=setInterval(()=>{
+    plateData.forEach(pd=>{
+      if(pd.state==='idle'&&pd.allItems.length>0){
+        pd.cycleIdx=(pd.cycleIdx+1)%pd.allItems.length;
+        pd.box.querySelector('.p-text').textContent=pd.allItems[pd.cycleIdx].text;
+      }
+    });
+  },speed||100);
+}
+function stopCycle(){ clearInterval(cycleIv); }
+
+// ── main spin ────────────────────────────────────
+function fire(){
+  if(busy) return;
+  busy=true;
+  document.getElementById('btn-spin').disabled=true;
+  document.getElementById('standby-label').style.display='none';
+  const ra=document.getElementById('result-area');
+  ra.style.opacity='0'; ra.className='';
+
+  const settings=loadSettings();
+  let resultType;
+  if(settings.rehearsal&&settings.rehearsal.enabled){
+    const idx=(settings.rehearsal.index||0)%10;
+    const forced=settings.rehearsal.sequence[idx];
+    if(forced!=null&&forced!==''){
+      resultType=forced;
+      settings.rehearsal.index=(idx+1)%10;
+      saveSettings(settings);
+    } else { resultType=pickResultType(settings); }
+  } else { resultType=pickResultType(settings); }
+
+  // reset plates
+  plateData.forEach(pd=>{
+    pd.state='idle'; pd.locked=false; pd.lockedType=null; pd.assignedItem=null;
+    pd.box.className='plate-box';
+    pd.box.querySelector('.p-type').textContent='—';
+    const txt=pd.allItems.length>0?pd.allItems[0].text:'—';
+    pd.box.querySelector('.p-text').textContent=txt;
+  });
+  coreCharge=0; pShockwaves=[];
+
+  // start fast cycle
+  startCycle(80);
+
+  // core charge builds
+  setTimeout(()=>{ coreCharge=0.5; shockwaves.push({r:10,a:0.7},{r:24,a:0.5}); },350);
+
+  // lock plates one by one
+  const lockCount=[0];
+  plateData.forEach((pd,i)=>{
+    setTimeout(()=>{
+      const item=pickFromPool(pd.cfg,resultType);
+      pd.assignedItem=item; pd.lockedType=resultType;
+      pd.state='locked'; pd.locked=true;
+      pd.box.querySelector('.p-text').textContent=item.text;
+      const typeLabel=resultType==='atari'?'あたり':resultType==='futsuu'?'普通':'外れ';
+      pd.box.querySelector('.p-type').textContent=typeLabel;
+      pd.box.classList.add('locked',resultType);
+
+      // flash
+      const fl=pd.box.querySelector('.p-flash');
+      fl.style.opacity='.65'; setTimeout(()=>fl.style.opacity='0',80);
+
+      // shockwave at plate position
+      const col=resultType==='atari'?'255,200,68':resultType==='futsuu'?'51,136,255':'70,90,140';
+      pShockwaves.push({x:pd.px,y:pd.py,r:18,a:1,col});
+      pShockwaves.push({x:pd.px,y:pd.py,r:8,a:0.7,col});
+      // core pulse
+      coreCharge=Math.min(1,coreCharge+0.28);
+      shockwaves.push({r:12,a:0.55});
+
+      lockCount[0]++;
+      if(lockCount[0]===plateData.length){
+        stopCycle();
+        setTimeout(()=>showResult(resultType),450);
+      }
+    },900+i*420);
+  });
+}
+
+function showResult(resultType){
+  const typeLabel=resultType==='atari'?'✦  あたり  ✦':resultType==='futsuu'?'普通':'外れ';
+  const items=plateData.map(pd=>pd.assignedItem?pd.assignedItem.text:'?');
+  const fs=n<=2?38:n<=4?30:22;
+  document.getElementById('result-type').textContent=typeLabel;
+  const ri=document.getElementById('result-item');
+  ri.style.fontSize=fs+'px';
+  ri.textContent=items.join('  ×  ');
+  const ra=document.getElementById('result-area');
+  ra.className=`visible ${resultType}`;
+  busy=false;
+  document.getElementById('btn-spin').disabled=false;
+}
+
+function updateCount(newN){
+  n=newN;
+  document.getElementById('cnt').textContent=n;
+  document.getElementById('standby-label').style.display='';
+  document.getElementById('result-area').className='';
+  const s=loadSettings(); s.plateCount=n; saveSettings(s);
+  build();
+}
+
+document.getElementById('btn-m').onclick=()=>{ if(n>1&&!busy) updateCount(n-1); };
+document.getElementById('btn-p').onclick=()=>{ if(n<6&&!busy) updateCount(n+1); };
+document.getElementById('btn-spin').onclick=fire;
+
+// init
+(function(){
+  const s=loadSettings();
+  n=Math.min(Math.max(s.plateCount||4,1),6);
+  document.getElementById('cnt').textContent=n;
+})();
+build();
+drawFrame();
+</script>
+<script>(function(){function fit(){var s=Math.min(window.innerWidth/1920,window.innerHeight/1080);document.body.style.transform="scale("+s+")";document.body.style.transformOrigin="top left";document.documentElement.style.overflow="hidden";}fit();window.addEventListener("resize",fit);})();</script>
+</body>
+</html>

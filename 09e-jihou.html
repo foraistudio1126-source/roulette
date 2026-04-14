@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>09-E 磁砲 — TV MAGNET</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { width:1920px; height:1080px; overflow:hidden; background:#04050a; font-family:'Helvetica Neue',Arial,sans-serif; color:#e0e0e0; }
+#back { position:fixed; top:18px; left:28px; font-size:13px; color:#333; text-decoration:none; letter-spacing:2px; z-index:200; }
+#back:hover { color:#666; }
+#title { position:fixed; top:18px; left:50%; transform:translateX(-50%); font-size:12px; color:#222; letter-spacing:6px; z-index:200; }
+canvas { position:absolute; inset:0; z-index:0; pointer-events:none; }
+
+.plate-wrap { position:absolute; transform:translate(-50%,-50%); z-index:20; }
+.plate-box {
+  width:210px; height:96px;
+  background:linear-gradient(145deg,#0d0d1c,#080814);
+  border:2px solid #1e1e30; border-radius:6px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+  position:relative; transition:border-color .3s, box-shadow .3s;
+}
+.plate-box.N { border-color:rgba(255,51,68,.3); }
+.plate-box.S { border-color:rgba(51,136,255,.3); }
+.plate-box.locked.N { border-color:rgba(255,51,68,.9); box-shadow:0 0 30px rgba(255,51,68,.5); }
+.plate-box.locked.S { border-color:rgba(51,136,255,.9); box-shadow:0 0 30px rgba(51,136,255,.5); }
+.plate-box.winner.N { border-color:#ff3344; box-shadow:0 0 60px rgba(255,51,68,.7), 0 0 120px rgba(255,51,68,.3); }
+.plate-box.winner.S { border-color:#3388ff; box-shadow:0 0 60px rgba(51,136,255,.7), 0 0 120px rgba(51,136,255,.3); }
+.p-num { font-size:10px; letter-spacing:2px; color:#222; }
+.p-text { font-size:26px; font-weight:700; letter-spacing:2px; color:#888; text-align:center; padding:0 8px; transition:color .3s; line-height:1.2; }
+.plate-box.locked.N .p-text, .plate-box.winner.N .p-text { color:#ffaaaa; text-shadow:0 0 16px #ff334455; font-size:28px; }
+.plate-box.locked.S .p-text, .plate-box.winner.S .p-text { color:#aabbff; text-shadow:0 0 16px #3366ff55; font-size:28px; }
+.p-pol { font-size:11px; letter-spacing:3px; }
+.plate-box.N .p-pol { color:rgba(255,80,100,.5); }
+.plate-box.S .p-pol { color:rgba(80,130,255,.5); }
+.plate-box.locked.N .p-pol, .plate-box.winner.N .p-pol { color:#ff7788; }
+.plate-box.locked.S .p-pol, .plate-box.winner.S .p-pol { color:#7799ff; }
+.p-flash { position:absolute; inset:0; background:#fff; opacity:0; border-radius:6px; pointer-events:none; }
+
+#result-label { position:fixed; bottom:90px; left:50%; transform:translateX(-50%); font-size:22px; letter-spacing:8px; color:#333; z-index:60; pointer-events:none; opacity:0; transition:opacity .5s; }
+#result-label.visible { opacity:1; color:#888; }
+#result-label.accident { color:#ff3344; text-shadow:0 0 20px #ff334466; }
+#result-label.bonus { color:#3388ff; text-shadow:0 0 20px #3388ff66; }
+
+#ui { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:40px; z-index:100; }
+.btn { padding:11px 30px; border:1.5px solid #2a2a3a; background:linear-gradient(180deg,#141420,#0e0e1a); color:#777; font-size:14px; letter-spacing:3px; cursor:pointer; border-radius:4px; transition:all .2s; }
+.btn:hover { border-color:#444; color:#bbb; }
+#btn-spin { border-color:#3388ff; color:#66aaff; padding:13px 56px; font-size:17px; font-weight:700; letter-spacing:5px; }
+#btn-spin:hover { box-shadow:0 0 20px rgba(51,136,255,.4); }
+#btn-spin:disabled { border-color:#222; color:#333; box-shadow:none; cursor:not-allowed; }
+.lbl { font-size:13px; color:#444; letter-spacing:3px; }
+.cnt { width:52px; height:38px; background:#0a0a14; border:1px solid #222; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:700; border-radius:3px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="result-label">— STANDBY —</div>
+<a href="index.html" id="back">← INDEX</a>
+<div id="title">09-E — 磁砲 / JIHOU</div>
+<div id="ui">
+  <span class="lbl">プレート数</span>
+  <button class="btn" id="btn-m">－</button>
+  <div class="cnt" id="cnt">4</div>
+  <button class="btn" id="btn-p">＋</button>
+  <button class="btn" id="btn-spin">FIRE</button>
+</div>
+<script>
+const ITEMS=[{t:'アニソン歌手',p:'N'},{t:'方言で話す',p:'S'},{t:'1分間無言',p:'N'},{t:'ロボット口調',p:'S'},{t:'囁き声',p:'N'},{t:'怒り口調',p:'S'},{t:'モノマネ',p:'N'},{t:'超早口',p:'S'},{t:'関西弁',p:'N'},{t:'敬語禁止',p:'S'}];
+const CX=960,CY=540,OUTER_R=390,INNER_R=120;
+const c=document.getElementById('c'),ctx=c.getContext('2d'); c.width=1920; c.height=1080;
+let n=4,busy=false,plateData=[],beams=[],shockwaves=[],coreCharge=0,globalT=0;
+
+function getAngles(count){ return Array.from({length:count},(_,i)=>-Math.PI/2+(i/count)*Math.PI*2); }
+
+function build(){
+  document.querySelectorAll('.plate-wrap').forEach(e=>e.remove());
+  plateData=[];
+  const angles=getAngles(n);
+  angles.forEach((ang,i)=>{
+    const ox=CX+Math.cos(ang)*OUTER_R, oy=CY+Math.sin(ang)*OUTER_R;
+    const wrap=document.createElement('div'); wrap.className='plate-wrap';
+    wrap.style.left=ox+'px'; wrap.style.top=oy+'px';
+    const item=ITEMS[i%ITEMS.length];
+    const box=document.createElement('div'); box.className=`plate-box ${item.p}`;
+    box.innerHTML=`<div class="p-num">PLT-${String(i+1).padStart(2,'0')}</div><div class="p-text">${item.t}</div><div class="p-pol">${item.p} 極</div><div class="p-flash"></div>`;
+    wrap.appendChild(box); document.body.appendChild(wrap);
+    plateData.push({wrap,box,ox,oy,angle:ang,item,state:'idle',locked:false,winner:false,cycleIdx:i});
+  });
+  coreCharge=0;
+}
+
+function drawFrame(){
+  ctx.clearRect(0,0,1920,1080);
+  // faint bg grid
+  for(let x=0;x<1920;x+=100) for(let y=0;y<1080;y+=100){ ctx.beginPath(); ctx.arc(x,y,1.2,0,Math.PI*2); ctx.fillStyle='rgba(40,60,100,.07)'; ctx.fill(); }
+  // rails
+  plateData.forEach(pd=>{
+    const gx=pd.angle,ix=CX+Math.cos(gx)*INNER_R,iy=CY+Math.sin(gx)*INNER_R;
+    ctx.beginPath(); ctx.moveTo(ix,iy); ctx.lineTo(pd.ox,pd.oy);
+    ctx.strokeStyle='rgba(30,60,120,.4)'; ctx.lineWidth=6; ctx.stroke();
+    ctx.strokeStyle='rgba(60,100,200,.15)'; ctx.lineWidth=3; ctx.stroke();
+  });
+  // beams
+  beams=beams.filter(b=>{ b.progress+=0.08; b.alpha=Math.max(0,b.alpha-0.04);
+    if(b.alpha<=0) return false;
+    const px=CX+Math.cos(b.angle)*(INNER_R+(OUTER_R-INNER_R)*b.progress);
+    const py=CY+Math.sin(b.angle)*(INNER_R+(OUTER_R-INNER_R)*b.progress);
+    ctx.beginPath(); ctx.arc(px,py,6,0,Math.PI*2);
+    ctx.fillStyle=`rgba(100,200,255,${b.alpha})`; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(CX+Math.cos(b.angle)*INNER_R,CY+Math.sin(b.angle)*INNER_R); ctx.lineTo(px,py);
+    ctx.strokeStyle=`rgba(100,180,255,${b.alpha*0.5})`; ctx.lineWidth=2; ctx.stroke(); return true; });
+  // shockwaves
+  shockwaves=shockwaves.filter(sw=>{ sw.r+=8; sw.a-=0.025;
+    if(sw.a<=0)return false;
+    ctx.beginPath(); ctx.arc(CX,CY,sw.r,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(100,200,255,${sw.a})`; ctx.lineWidth=2.5; ctx.stroke(); return true; });
+  // core
+  const charge=Math.sin(globalT*.03)*0.3+0.4+coreCharge;
+  const cg=ctx.createRadialGradient(CX,CY,0,CX,CY,INNER_R);
+  cg.addColorStop(0,`rgba(${40+coreCharge*200},${120+coreCharge*100},255,${0.8+coreCharge*0.2})`);
+  cg.addColorStop(0.4,'rgba(10,30,80,.9)'); cg.addColorStop(1,'rgba(4,10,20,1)');
+  ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(CX,CY,INNER_R,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(CX,CY,INNER_R,0,Math.PI*2);
+  ctx.strokeStyle=`rgba(${80+coreCharge*180},${160+coreCharge*80},255,${0.5+coreCharge*.5})`; ctx.lineWidth=3; ctx.stroke();
+  // arcs
+  for(let a=0;a<6;a++){
+    const ang=globalT*.04+a*Math.PI/3;
+    ctx.beginPath(); ctx.arc(CX,CY,INNER_R-5,ang,ang+.3);
+    ctx.strokeStyle=`rgba(100,200,255,${0.15+coreCharge*.3})`; ctx.lineWidth=2; ctx.stroke();
+  }
+  coreCharge=Math.max(0,coreCharge-.01);
+  globalT++; requestAnimationFrame(drawFrame);
+}
+
+let cycleIv;
+function startCycle(){ cycleIv=setInterval(()=>{ plateData.forEach((pd,i)=>{ if(pd.state==='idle'){ pd.cycleIdx=(pd.cycleIdx+1)%ITEMS.length; pd.box.querySelector('.p-text').textContent=ITEMS[pd.cycleIdx].t; }}); },100); }
+function stopCycle(){ clearInterval(cycleIv); }
+
+function fire(){
+  if(busy)return; busy=true;
+  document.getElementById('btn-spin').disabled=true;
+  document.getElementById('result-label').className='';
+  document.getElementById('result-label').textContent='— LOADING —';
+  plateData.forEach(pd=>{ pd.state='idle'; pd.locked=false; pd.winner=false; pd.box.className=`plate-box ${pd.item.p}`; pd.wrap.style.left=pd.ox+'px'; pd.wrap.style.top=pd.oy+'px'; pd.wrap.style.transition=''; });
+  coreCharge=0;
+  startCycle();
+
+  // phase 1: fire beams outward to all plates
+  setTimeout(()=>{
+    plateData.forEach((pd,i)=>{
+      setTimeout(()=>{ beams.push({angle:pd.angle,progress:0,alpha:0.9}); },i*80);
+    });
+  },400);
+
+  // phase 2: snap plates inward
+  const results=[];
+  plateData.forEach((pd,i)=>{
+    setTimeout(()=>{
+      const item=ITEMS[Math.floor(Math.random()*ITEMS.length)];
+      pd.item=item; pd.state='locked'; pd.locked=true;
+      pd.box.querySelector('.p-text').textContent=item.t;
+      pd.box.querySelector('.p-pol').textContent=item.p+' 極';
+      pd.box.classList.add('locked');
+      const ix=CX+Math.cos(pd.angle)*INNER_R, iy=CY+Math.sin(pd.angle)*INNER_R;
+      pd.wrap.style.transition='left .15s cubic-bezier(.9,0,1,1),top .15s cubic-bezier(.9,0,1,1)';
+      pd.wrap.style.left=ix+'px'; pd.wrap.style.top=iy+'px';
+      setTimeout(()=>{
+        const fl=pd.box.querySelector('.p-flash'); fl.style.opacity='.8'; setTimeout(()=>fl.style.opacity='0',90);
+        shockwaves.push({r:15,a:1},{r:8,a:.8}); coreCharge=Math.min(1,coreCharge+0.3);
+        results.push({item,idx:i});
+        if(results.length===plateData.length){ stopCycle(); setTimeout(()=>reveal(results),600); }
+      },170);
+    },1200+i*350);
+  });
+}
+
+function reveal(results){
+  // pick winner randomly
+  const winIdx=Math.floor(Math.random()*results.length);
+  const winItem=results[winIdx].item;
+  // eject losers back to outer
+  plateData.forEach((pd,i)=>{
+    if(i!==winIdx){
+      setTimeout(()=>{
+        pd.wrap.style.transition='left .2s cubic-bezier(.05,.9,.1,1),top .2s cubic-bezier(.05,.9,.1,1)';
+        pd.wrap.style.left=pd.ox+'px'; pd.wrap.style.top=pd.oy+'px';
+        pd.box.classList.remove('locked'); pd.box.classList.add('N');
+      },i*80);
+    } else {
+      pd.box.classList.add('winner'); pd.box.classList.remove('locked');
+    }
+  });
+  // label
+  const nN=results.map(r=>r.item).filter(r=>r.p==='N').length;
+  const nS=results.map(r=>r.item).filter(r=>r.p==='S').length;
+  const el=document.getElementById('result-label');
+  setTimeout(()=>{
+    if(nN===results.length){el.textContent='⚡ N極フルコンプ — 大事故 ⚡';el.className='accident visible';}
+    else if(nS===results.length){el.textContent='⚡ S極フルコンプ — 大事故 ⚡';el.className='accident visible';}
+    else if(nN===nS&&results.length%2===0){el.textContent='✦ 完全対極 — ボーナス ✦';el.className='bonus visible';}
+    else{el.textContent=`WINNER: ${winItem.t}`;el.className='visible';}
+    busy=false; document.getElementById('btn-spin').disabled=false;
+  },plateData.length*80+300);
+}
+
+document.getElementById('btn-m').onclick=()=>{if(n>1&&!busy){n--;document.getElementById('cnt').textContent=n;document.getElementById('result-label').textContent='— STANDBY —';document.getElementById('result-label').className='';build();}};
+document.getElementById('btn-p').onclick=()=>{if(n<6&&!busy){n++;document.getElementById('cnt').textContent=n;document.getElementById('result-label').textContent='— STANDBY —';document.getElementById('result-label').className='';build();}};
+document.getElementById('btn-spin').onclick=fire;
+build(); drawFrame();
+</script>
+<script>(function(){function fit(){var s=Math.min(window.innerWidth/1920,window.innerHeight/1080);document.body.style.transform="scale("+s+")";document.body.style.transformOrigin="top left";document.documentElement.style.overflow="hidden";}fit();window.addEventListener("resize",fit);})();</script>
+</body>
+</html>

@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>08 深海 — TV MAGNET</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#04050a;
+  color:#e0e0e0;
+  font-family:'Helvetica Neue',Arial,sans-serif;
+  width:1920px; height:1080px;
+  overflow:hidden;
+  position:relative;
+}
+#back { position:fixed; top:16px; left:24px; font-size:13px; color:#3a5a3a; text-decoration:none; letter-spacing:2px; z-index:200; }
+#back:hover { color:#5a8a5a; }
+#title { position:fixed; top:16px; left:50%; transform:translateX(-50%); font-size:12px; color:#1a2a1a; letter-spacing:6px; text-transform:uppercase; z-index:200; }
+
+canvas#sonar { position:absolute; inset:0; z-index:0; }
+
+/* cards */
+.sonar-card {
+  position:absolute;
+  width:260px; height:120px;
+  background:linear-gradient(145deg,rgba(4,20,12,0.95),rgba(2,10,6,0.98));
+  border:1px solid rgba(0,180,80,0.2);
+  border-radius:4px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:6px;
+  z-index:10;
+  transform:translate(-50%,-50%);
+  box-shadow:0 0 20px rgba(0,0,0,0.8);
+  transition:border-color 0.3s, box-shadow 0.3s;
+}
+.sonar-card.illuminated {
+  border-color:rgba(0,220,100,0.5);
+  box-shadow:0 0 30px rgba(0,220,100,0.15);
+}
+.sonar-card.locked-N {
+  border-color:rgba(255,51,68,0.6);
+  box-shadow:0 0 30px rgba(255,51,68,0.3);
+}
+.sonar-card.locked-S {
+  border-color:rgba(51,136,255,0.6);
+  box-shadow:0 0 30px rgba(51,136,255,0.3);
+}
+.card-id { font-size:10px; letter-spacing:3px; color:#1a3a1a; }
+.card-text {
+  font-size:24px; font-weight:700; letter-spacing:2px;
+  color:#1a4a1a; text-align:center; padding:0 10px;
+  transition:all 0.2s;
+}
+.sonar-card.illuminated .card-text { color:#00cc66; }
+.sonar-card.locked-N .card-text { color:#ff8888; text-shadow:0 0 15px #ff334455; }
+.sonar-card.locked-S .card-text { color:#88aaff; text-shadow:0 0 15px #3388ff55; }
+.card-pol { font-size:10px; letter-spacing:3px; color:#0a2a0a; }
+.sonar-card.locked-N .card-pol { color:#ff6677; }
+.sonar-card.locked-S .card-pol { color:#66aaff; }
+
+/* result readout */
+#result-readout {
+  position:fixed; bottom:80px; left:50%; transform:translateX(-50%);
+  width:900px; height:70px;
+  background:rgba(2,8,4,0.95);
+  border:1px solid rgba(0,180,80,0.2);
+  border-radius:4px;
+  display:flex; align-items:center; justify-content:center; gap:20px;
+  z-index:50;
+  font-family:monospace;
+}
+.readout-label { font-size:11px; letter-spacing:3px; color:#0a3a0a; }
+#readout-text {
+  font-size:32px; font-weight:700; letter-spacing:6px;
+  color:#0a3a0a; transition:all 0.5s;
+}
+#readout-text.visible { color:#00cc66; }
+#readout-text.accident { color:#ff3344; text-shadow:0 0 20px #ff334466; }
+#readout-text.bonus { color:#3388ff; text-shadow:0 0 20px #3388ff66; }
+
+#controls {
+  position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
+  display:flex; align-items:center; gap:40px; z-index:100;
+}
+.btn { padding:10px 28px; border:1.5px solid #1a3a1a; background:rgba(2,10,6,0.9); color:#2a5a2a; font-size:14px; letter-spacing:3px; text-transform:uppercase; cursor:pointer; border-radius:3px; transition:all 0.2s; font-family:monospace; }
+.btn:hover { border-color:#2a5a2a; color:#4a8a4a; }
+.btn.spin-btn { border-color:#00cc66; color:#00cc66; padding:12px 48px; font-size:16px; font-weight:700; }
+.btn.spin-btn:hover { box-shadow:0 0 20px rgba(0,204,102,0.3); }
+.btn.spin-btn:disabled { border-color:#1a3a1a; color:#1a3a1a; cursor:not-allowed; }
+.count-display { width:48px; height:36px; background:rgba(2,10,6,0.9); border:1px solid #1a3a1a; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700; border-radius:2px; color:#2a5a2a; font-family:monospace; }
+.ctrl-label { font-size:13px; color:#1a3a1a; letter-spacing:3px; text-transform:uppercase; font-family:monospace; }
+</style>
+</head>
+<body>
+<canvas id="sonar"></canvas>
+<a href="index.html" id="back">← INDEX</a>
+<div id="title">08 — 深海 / SHINKAI</div>
+
+<div id="result-readout">
+  <span class="readout-label">SONAR RESULT ›</span>
+  <div id="readout-text">SCANNING...</div>
+</div>
+<div id="controls">
+  <span class="ctrl-label">カード数</span>
+  <button class="btn" id="btn-minus">－</button>
+  <div class="count-display" id="count-display">3</div>
+  <button class="btn" id="btn-plus">＋</button>
+  <button class="btn spin-btn" id="btn-spin">SCAN</button>
+</div>
+
+<script>
+const ITEMS = [
+  {text:'アニソン歌手',pol:'N'},{text:'方言で話す',pol:'S'},
+  {text:'1分間無言',pol:'N'},{text:'ロボット口調',pol:'S'},
+  {text:'囁き声',pol:'N'},{text:'怒り口調',pol:'S'},
+  {text:'モノマネ',pol:'N'},{text:'超早口',pol:'S'},
+  {text:'関西弁',pol:'N'},{text:'敬語禁止',pol:'S'},
+];
+
+const canvas = document.getElementById('sonar');
+const ctx = canvas.getContext('2d');
+canvas.width = 1920; canvas.height = 1080;
+const CX = 960, CY = 480;
+
+let cardCount = 3, spinning = false;
+let cardData = [];
+let sweepAngle = 0;
+let pingRings = []; // {x,y,r,alpha,color}
+
+// Card positions scattered across screen
+const POSITIONS = [
+  [960,260], [620,380], [1300,380], [520,600], [960,580], [1400,600]
+];
+
+function buildCards() {
+  document.querySelectorAll('.sonar-card').forEach(e=>e.remove());
+  cardData = [];
+  for (let i=0; i<cardCount; i++) {
+    const [px,py] = POSITIONS[i];
+    const card = document.createElement('div');
+    card.className = 'sonar-card';
+    card.style.left = px+'px';
+    card.style.top = py+'px';
+    card.innerHTML = `
+      <div class="card-id">TGT-${String(i+1).padStart(3,'0')}</div>
+      <div class="card-text">—</div>
+      <div class="card-pol">UNKNOWN</div>
+    `;
+    document.body.appendChild(card);
+    cardData.push({el:card, x:px, y:py, locked:false, item:null, cycleIdx:i, illuminated:false});
+  }
+}
+
+function drawSonar() {
+  ctx.clearRect(0,0,1920,1080);
+  // background grid circles
+  for (let r=80; r<=500; r+=80) {
+    ctx.beginPath(); ctx.arc(CX,CY,r,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(0,100,40,${0.06+0.02*Math.sin(r*0.05)})`;
+    ctx.lineWidth=1; ctx.stroke();
+  }
+  // grid lines
+  for (let a=0; a<8; a++) {
+    const ang = a*Math.PI/4;
+    ctx.beginPath(); ctx.moveTo(CX,CY);
+    ctx.lineTo(CX+Math.cos(ang)*520, CY+Math.sin(ang)*520);
+    ctx.strokeStyle='rgba(0,100,40,0.06)'; ctx.lineWidth=1; ctx.stroke();
+  }
+  // sweep
+  const sweep = ctx.createConicalGradient ? null : null;
+  // draw sweep as arc fan
+  const fanSpan = Math.PI/8;
+  for (let i=0; i<20; i++) {
+    const a = sweepAngle - fanSpan*(i/20);
+    const alpha = (1-i/20)*0.18;
+    ctx.beginPath();
+    ctx.moveTo(CX,CY);
+    ctx.arc(CX,CY,540,a-fanSpan/20,a);
+    ctx.closePath();
+    ctx.fillStyle=`rgba(0,220,80,${alpha})`;
+    ctx.fill();
+  }
+  // sweep line
+  ctx.beginPath();
+  ctx.moveTo(CX,CY);
+  ctx.lineTo(CX+Math.cos(sweepAngle)*540, CY+Math.sin(sweepAngle)*540);
+  ctx.strokeStyle='rgba(0,255,100,0.7)';
+  ctx.lineWidth=2;
+  ctx.shadowColor='#00ff60'; ctx.shadowBlur=12;
+  ctx.stroke(); ctx.shadowBlur=0;
+
+  // center dot
+  ctx.beginPath(); ctx.arc(CX,CY,6,0,Math.PI*2);
+  ctx.fillStyle='rgba(0,220,80,0.8)'; ctx.fill();
+
+  // ping rings
+  pingRings = pingRings.filter(p=>{
+    p.r+=3; p.alpha-=0.018;
+    if(p.alpha<=0) return false;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.strokeStyle=`${p.color}${Math.floor(p.alpha*255).toString(16).padStart(2,'0')}`;
+    ctx.lineWidth=1.5; ctx.stroke();
+    return true;
+  });
+}
+
+// check if sweep hits a card
+function checkSweepHitCards() {
+  cardData.forEach(cd=>{
+    if (cd.locked) return;
+    const dx=cd.x-CX, dy=cd.y-CY;
+    const cardAngle = Math.atan2(dy,dx);
+    const diff = Math.abs(((sweepAngle-cardAngle)+Math.PI*4)%(Math.PI*2));
+    const hit = diff<0.12 || diff>Math.PI*2-0.12;
+    if (hit && !cd.illuminated) {
+      cd.illuminated=true;
+      cd.el.classList.add('illuminated');
+      if (!cd.locked) {
+        cd.cycleIdx=(cd.cycleIdx+1)%ITEMS.length;
+        const item=ITEMS[cd.cycleIdx];
+        cd.el.querySelector('.card-text').textContent=item.text;
+        cd.el.querySelector('.card-pol').textContent=`${item.pol}極`;
+      }
+    } else if (!hit) { cd.illuminated=false; cd.el.classList.remove('illuminated'); }
+  });
+}
+
+let rafId;
+function loop() {
+  sweepAngle += 0.025;
+  if (sweepAngle > Math.PI*2) sweepAngle -= Math.PI*2;
+  checkSweepHitCards();
+  drawSonar();
+  rafId = requestAnimationFrame(loop);
+}
+
+let cycleIv;
+function spinAll() {
+  if (spinning) return;
+  spinning = true;
+  document.getElementById('btn-spin').disabled=true;
+  document.getElementById('readout-text').textContent='SCANNING...';
+  document.getElementById('readout-text').className='';
+  cardData.forEach(cd=>{cd.locked=false;cd.item=null;cd.el.className='sonar-card';cd.el.querySelector('.card-text').textContent='—';cd.el.querySelector('.card-pol').textContent='UNKNOWN';});
+  pingRings=[];
+
+  const results=[];
+  cardData.forEach((cd,i)=>{
+    setTimeout(()=>{
+      const item=ITEMS[Math.floor(Math.random()*ITEMS.length)];
+      cd.item=item; cd.locked=true;
+      cd.el.className=`sonar-card locked-${item.pol}`;
+      cd.el.querySelector('.card-text').textContent=item.text;
+      cd.el.querySelector('.card-pol').textContent=`${item.pol}極`;
+      // emit ping
+      for(let p=0;p<5;p++){
+        setTimeout(()=>{
+          pingRings.push({x:cd.x,y:cd.y,r:10,alpha:0.7,color:item.pol==='N'?'#ff3344':'#3388ff'});
+        },p*200);
+      }
+      results.push(item);
+      if(results.length===cardData.length){setTimeout(()=>onAllDone(results),600);}
+    }, 2000+i*800);
+  });
+}
+
+function onAllDone(results){
+  const nC=results.filter(r=>r.pol==='N').length,sC=results.filter(r=>r.pol==='S').length;
+  const rt=document.getElementById('readout-text');
+  if(nC===results.length){rt.textContent='⚡ N極フルコンプ — 大事故';rt.className='accident visible';}
+  else if(sC===results.length){rt.textContent='⚡ S極フルコンプ — 大事故';rt.className='accident visible';}
+  else if(nC===sC&&results.length%2===0){rt.textContent='✦ 完全対極 — ボーナス';rt.className='bonus visible';}
+  else{rt.textContent=results.map(r=>r.text).join(' / ');rt.className='visible';rt.style.fontSize=results.length>3?'20px':'28px';}
+  spinning=false; document.getElementById('btn-spin').disabled=false;
+}
+
+document.getElementById('btn-minus').onclick=()=>{if(cardCount>1&&!spinning){cardCount--;document.getElementById('count-display').textContent=cardCount;pingRings=[];buildCards();}};
+document.getElementById('btn-plus').onclick=()=>{if(cardCount<6&&!spinning){cardCount++;document.getElementById('count-display').textContent=cardCount;pingRings=[];buildCards();}};
+document.getElementById('btn-spin').onclick=spinAll;
+buildCards(); loop();
+</script>
+<script>
+(function(){
+  function fit(){
+    var s=Math.min(window.innerWidth/1920,window.innerHeight/1080);
+    document.body.style.transform="scale("+s+")";
+    document.body.style.transformOrigin="top left";
+    document.body.style.width="1920px";
+    document.body.style.height="1080px";
+    document.body.style.overflow="hidden";
+    document.documentElement.style.overflow="hidden";
+    document.documentElement.style.background="#06060e";
+  }
+  fit(); window.addEventListener("resize",fit);
+})();
+</script>
+</body>
+</html>

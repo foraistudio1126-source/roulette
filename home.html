@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>TV MAGNET</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#05050c;font-family:'Helvetica Neue',Arial,sans-serif;color:#e0e0e0;}
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(255,51,68,0.03)1px,transparent 1px),linear-gradient(90deg,rgba(51,136,255,0.03)1px,transparent 1px);
+  background-size:80px 80px;pointer-events:none;z-index:0;}
+
+/* ─── HOME ─── */
+#home{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1;}
+#home-title{font-size:52px;font-weight:900;letter-spacing:20px;
+  background:linear-gradient(90deg,#ff3344,#fff 40%,#3388ff);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;}
+#home-sub{font-size:13px;color:#333;letter-spacing:8px;margin-bottom:60px;}
+
+.mode-card{
+  width:680px;height:320px;
+  background:linear-gradient(145deg,#0d0d1c,#080814);
+  border:1.5px solid #252535;border-radius:12px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;
+  cursor:pointer;transition:all .25s;position:relative;overflow:hidden;}
+.mode-card::before{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at 50% 0%,rgba(51,136,255,0.06),transparent 60%);
+  pointer-events:none;}
+.mode-card:hover{border-color:#3344aa;box-shadow:0 0 60px rgba(51,100,255,0.15),0 0 120px rgba(51,100,255,0.06);}
+.card-num{font-size:11px;color:#2a2a4a;letter-spacing:4px;}
+.card-name{font-size:44px;font-weight:900;letter-spacing:6px;color:#e0e0e0;}
+.card-en{font-size:13px;color:#444;letter-spacing:4px;}
+.card-desc{font-size:15px;color:#666;letter-spacing:1px;text-align:center;max-width:500px;line-height:1.7;}
+.card-start{
+  margin-top:8px;padding:14px 60px;
+  border:1.5px solid #3388ff;color:#66aaff;
+  background:transparent;font-size:15px;font-weight:700;letter-spacing:6px;
+  cursor:pointer;border-radius:4px;transition:all .2s;}
+.card-start:hover{background:rgba(51,136,255,0.1);box-shadow:0 0 20px rgba(51,136,255,0.3);}
+
+/* gear */
+#gear-btn{position:fixed;top:32px;right:40px;z-index:10;
+  width:52px;height:52px;background:transparent;border:1.5px solid #2a2a3a;
+  border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all .2s;color:#444;}
+#gear-btn:hover{border-color:#555;color:#aaa;background:rgba(255,255,255,0.04);}
+#gear-btn svg{width:24px;height:24px;}
+
+/* ─── SETTINGS OVERLAY ─── */
+#settings{position:fixed;inset:0;z-index:100;display:none;}
+#settings.open{display:flex;}
+#settings-bg{position:absolute;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(4px);}
+
+#settings-panel{
+  position:relative;z-index:1;
+  width:1400px;height:860px;margin:auto;
+  background:#0a0a14;border:1px solid #1e1e30;border-radius:12px;
+  display:flex;overflow:hidden;
+  box-shadow:0 0 80px rgba(0,0,0,0.8);}
+
+/* sidebar */
+#settings-nav{
+  width:220px;min-width:220px;
+  background:#07071010;border-right:1px solid #1a1a28;
+  padding:40px 0;display:flex;flex-direction:column;gap:4px;}
+.nav-section{font-size:10px;color:#2a2a3a;letter-spacing:4px;padding:16px 24px 8px;text-transform:uppercase;}
+.nav-item{
+  padding:14px 24px;font-size:14px;color:#555;letter-spacing:2px;
+  cursor:pointer;transition:all .2s;border-left:2px solid transparent;}
+.nav-item:hover{color:#aaa;background:rgba(255,255,255,0.03);}
+.nav-item.active{color:#e0e0e0;border-left-color:#3388ff;background:rgba(51,136,255,0.06);}
+#settings-close{
+  margin-top:auto;margin:auto 16px 24px;
+  padding:12px;border:1px solid #1e1e30;background:transparent;
+  color:#444;font-size:13px;letter-spacing:3px;cursor:pointer;border-radius:4px;transition:all .2s;}
+#settings-close:hover{border-color:#555;color:#aaa;}
+
+/* main content area */
+#settings-content{flex:1;overflow-y:auto;padding:40px 48px;}
+#settings-content::-webkit-scrollbar{width:4px;}
+#settings-content::-webkit-scrollbar-track{background:#0a0a14;}
+#settings-content::-webkit-scrollbar-thumb{background:#2a2a3a;border-radius:2px;}
+
+.section-title{font-size:22px;font-weight:700;letter-spacing:4px;margin-bottom:6px;}
+.section-sub{font-size:13px;color:#444;letter-spacing:2px;margin-bottom:32px;}
+.section-page{display:none;}
+.section-page.active{display:block;}
+
+/* ─── PLATE SETTINGS ─── */
+#plate-indicators{display:flex;gap:12px;margin-bottom:32px;flex-wrap:wrap;}
+.plate-pill{
+  padding:10px 18px;border-radius:6px;border:1px solid #1e1e30;
+  background:#0d0d1c;cursor:pointer;transition:all .2s;min-width:160px;}
+.plate-pill:hover{border-color:#2a2a4a;}
+.plate-pill.active{border-color:#3388ff;background:rgba(51,136,255,0.08);}
+.pill-label{font-size:11px;color:#555;letter-spacing:2px;margin-bottom:4px;}
+.pill-genre{font-size:14px;color:#aaa;font-weight:600;}
+.pill-counts{font-size:11px;color:#444;margin-top:4px;}
+.pill-counts .c-atari{color:#ff6677;}
+.pill-counts .c-futsuu{color:#aaa;}
+.pill-counts .c-hazure{color:#3388ff;}
+
+#plate-editor{background:#0d0d1c;border:1px solid #1a1a28;border-radius:8px;padding:28px;}
+.genre-row{display:flex;align-items:center;gap:16px;margin-bottom:28px;}
+.genre-label{font-size:13px;color:#555;letter-spacing:3px;min-width:80px;}
+.genre-input{
+  flex:1;padding:10px 16px;background:#08080f;border:1px solid #1e1e30;border-radius:4px;
+  color:#e0e0e0;font-size:16px;letter-spacing:2px;outline:none;}
+.genre-input:focus{border-color:#3388ff;}
+
+.import-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;}
+.import-box{}
+.import-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.import-type-label{font-size:12px;font-weight:700;letter-spacing:3px;}
+.import-type-label.atari{color:#ff6677;}
+.import-type-label.futsuu{color:#aaa;}
+.import-type-label.hazure{color:#3388ff;}
+.import-count{font-size:11px;padding:2px 8px;border-radius:10px;border:1px solid;}
+.import-count.atari{color:#ff6677;border-color:#ff334433;}
+.import-count.futsuu{color:#888;border-color:#33333388;}
+.import-count.hazure{color:#66aaff;border-color:#3388ff33;}
+.import-textarea{
+  width:100%;height:140px;padding:12px;
+  background:#08080f;border:1px solid #1a1a28;border-radius:4px;
+  color:#ccc;font-size:13px;line-height:1.8;resize:vertical;outline:none;
+  font-family:'Helvetica Neue',Arial,sans-serif;}
+.import-textarea:focus{border-color:#2a2a4a;}
+.import-textarea::placeholder{color:#2a2a3a;}
+.import-btn{
+  margin-top:8px;width:100%;padding:10px;
+  border:1px solid #2a2a3a;background:transparent;
+  color:#666;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:4px;transition:all .2s;}
+.import-btn:hover{border-color:#444;color:#aaa;}
+.import-btn.atari:hover{border-color:#ff334466;color:#ff6677;}
+.import-btn.futsuu:hover{border-color:#44444488;color:#ccc;}
+.import-btn.hazure:hover{border-color:#3388ff66;color:#66aaff;}
+.import-items-preview{
+  margin-top:8px;font-size:11px;color:#333;line-height:1.6;
+  max-height:60px;overflow:hidden;text-overflow:ellipsis;}
+
+/* ─── EFFECT SETTINGS ─── */
+.tab-row{display:flex;gap:0;margin-bottom:32px;border-bottom:1px solid #1a1a28;}
+.tab-btn{
+  padding:12px 28px;font-size:13px;letter-spacing:3px;color:#444;
+  cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;background:transparent;border-top:none;border-left:none;border-right:none;}
+.tab-btn:hover{color:#888;}
+.tab-btn.active{color:#e0e0e0;border-bottom-color:#3388ff;}
+.tab-content{display:none;}
+.tab-content.active{display:block;}
+.wip-block{
+  padding:40px;text-align:center;border:1px dashed #1a1a28;border-radius:8px;color:#2a2a3a;
+  font-size:14px;letter-spacing:3px;}
+
+.prob-table{width:100%;border-collapse:collapse;}
+.prob-table th{font-size:11px;color:#333;letter-spacing:3px;padding:10px 16px;text-align:left;font-weight:400;}
+.prob-row{border-top:1px solid #0f0f1c;}
+.prob-row td{padding:16px;}
+.prob-type{font-size:14px;font-weight:700;letter-spacing:2px;}
+.prob-type.atari{color:#ff6677;}
+.prob-type.futsuu{color:#aaa;}
+.prob-type.hazure{color:#66aaff;}
+.prob-input-wrap{display:flex;align-items:center;gap:8px;}
+.prob-input{
+  width:80px;padding:8px 12px;background:#08080f;border:1px solid #1e1e30;
+  border-radius:4px;color:#e0e0e0;font-size:18px;font-weight:700;text-align:center;outline:none;}
+.prob-input:focus{border-color:#3388ff;}
+.prob-pct{font-size:14px;color:#444;}
+.priority-btns{display:flex;gap:6px;}
+.pri-btn{
+  padding:7px 16px;border:1px solid #1e1e30;background:transparent;
+  color:#444;font-size:12px;letter-spacing:2px;cursor:pointer;border-radius:3px;transition:all .2s;}
+.pri-btn:hover{border-color:#333;color:#888;}
+.pri-btn.sel-weak  {border-color:#666;color:#aaa;background:rgba(255,255,255,0.05);}
+.pri-btn.sel-mid   {border-color:#aaa;color:#ddd;background:rgba(255,255,255,0.08);}
+.pri-btn.sel-strong{border-color:#ffaa44;color:#ffcc66;background:rgba(255,170,50,0.08);}
+.prob-total{
+  margin-top:20px;padding:14px 16px;
+  background:#0d0d1c;border:1px solid #1a1a28;border-radius:4px;
+  display:flex;align-items:center;gap:12px;font-size:14px;color:#555;}
+.prob-total-num{font-size:22px;font-weight:700;}
+.prob-total-num.ok{color:#44cc88;}
+.prob-total-num.ng{color:#ff3344;}
+
+/* ─── REHEARSAL ─── */
+.rehearsal-toggle-row{display:flex;align-items:center;gap:16px;margin-bottom:32px;}
+.toggle-wrap{display:flex;align-items:center;gap:12px;}
+.toggle-label{font-size:13px;color:#555;letter-spacing:2px;}
+.toggle{position:relative;width:52px;height:28px;cursor:pointer;}
+.toggle input{opacity:0;width:0;height:0;}
+.toggle-track{
+  position:absolute;inset:0;background:#1a1a28;border-radius:14px;
+  transition:.3s;border:1px solid #2a2a3a;}
+.toggle input:checked + .toggle-track{background:rgba(51,136,255,0.3);border-color:#3388ff;}
+.toggle-knob{
+  position:absolute;top:4px;left:4px;width:18px;height:18px;
+  background:#444;border-radius:50%;transition:.3s;}
+.toggle input:checked + .toggle-track + .toggle-knob,
+.toggle input:checked ~ .toggle-knob{left:28px;background:#3388ff;}
+
+.rehearsal-note{font-size:13px;color:#555;letter-spacing:1px;line-height:1.7;margin-bottom:28px;}
+.rehearsal-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:24px;}
+.rehearsal-slot{background:#0d0d1c;border:1px solid #1a1a28;border-radius:6px;padding:14px;}
+.slot-num{font-size:10px;color:#2a2a3a;letter-spacing:2px;margin-bottom:8px;}
+.slot-select{
+  width:100%;padding:8px;background:#08080f;border:1px solid #1e1e30;
+  border-radius:4px;color:#888;font-size:13px;letter-spacing:1px;outline:none;cursor:pointer;}
+.slot-select:focus{border-color:#3388ff;}
+option{background:#0a0a14;}
+.rehearsal-actions{display:flex;gap:12px;}
+.action-btn{
+  padding:10px 24px;border:1px solid #2a2a3a;background:transparent;
+  color:#555;font-size:13px;letter-spacing:2px;cursor:pointer;border-radius:4px;transition:all .2s;}
+.action-btn:hover{border-color:#444;color:#aaa;}
+.action-btn.primary{border-color:#3388ff;color:#66aaff;}
+.action-btn.primary:hover{background:rgba(51,136,255,0.1);}
+.rehearsal-idx{font-size:13px;color:#444;letter-spacing:2px;}
+</style>
+</head>
+<body>
+
+<!-- ─── HOME ─── -->
+<div id="home">
+  <div id="home-title">MAGNETIC × ROULETTE</div>
+  <div id="home-sub">TV MAGNET — SYSTEM</div>
+  <div class="mode-card" onclick="location.href='roulette.html'">
+    <div class="card-num">MODE 09</div>
+    <div class="card-name">磁砲</div>
+    <div class="card-en">JIHOU — Magnetic Cannon</div>
+    <div class="card-desc">各プレートが独立して項目を巡回し、全結果を一斉表示<br>磁力線のフィールド演出で抽選結果を見せる</div>
+    <button class="card-start" onclick="event.stopPropagation();location.href='roulette.html'">START</button>
+  </div>
+</div>
+
+<!-- gear -->
+<button id="gear-btn" onclick="openSettings()" title="設定">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+  </svg>
+</button>
+
+<!-- ─── SETTINGS ─── -->
+<div id="settings">
+  <div id="settings-bg" onclick="closeSettings()"></div>
+  <div id="settings-panel">
+    <!-- nav -->
+    <div id="settings-nav">
+      <div class="nav-section">設定</div>
+      <div class="nav-item active" onclick="showSection('plates')">プレート設定</div>
+      <div class="nav-item" onclick="showSection('effects')">演出設定</div>
+      <div class="nav-item" onclick="showSection('rehearsal')">リハーサル</div>
+      <button id="settings-close" onclick="closeSettings()">✕ 閉じる</button>
+    </div>
+    <!-- content -->
+    <div id="settings-content">
+
+      <!-- ── プレート設定 ── -->
+      <div class="section-page active" id="page-plates">
+        <div class="section-title">プレート設定</div>
+        <div class="section-sub">各プレートのジャンルとルーレット項目を設定します</div>
+        <div id="plate-indicators"></div>
+        <div id="plate-editor">
+          <div class="genre-row">
+            <div class="genre-label">ジャンル名</div>
+            <input class="genre-input" id="genre-input" placeholder="例：声のトーン" maxlength="20">
+            <button class="import-btn" style="width:100px;margin:0" onclick="saveGenre()">保存</button>
+          </div>
+          <div class="import-grid">
+            <div class="import-box">
+              <div class="import-header">
+                <div class="import-type-label atari">あたり</div>
+                <div class="import-count atari" id="count-atari">0件</div>
+              </div>
+              <textarea class="import-textarea" id="ta-atari" placeholder="1行1項目で入力&#10;&#10;例：&#10;激辛を食べた体で喋る&#10;語尾に「ピコ」をつける&#10;ずっと全力の早口"></textarea>
+              <button class="import-btn atari" onclick="importItems('atari')">登録</button>
+              <div class="import-items-preview" id="preview-atari"></div>
+            </div>
+            <div class="import-box">
+              <div class="import-header">
+                <div class="import-type-label futsuu">普通</div>
+                <div class="import-count futsuu" id="count-futsuu">0件</div>
+              </div>
+              <textarea class="import-textarea" id="ta-futsuu" placeholder="1行1項目で入力&#10;&#10;例：&#10;アニソン歌手&#10;方言で話す&#10;ロボット口調"></textarea>
+              <button class="import-btn futsuu" onclick="importItems('futsuu')">登録</button>
+              <div class="import-items-preview" id="preview-futsuu"></div>
+            </div>
+            <div class="import-box">
+              <div class="import-header">
+                <div class="import-type-label hazure">外れ</div>
+                <div class="import-count hazure" id="count-hazure">0件</div>
+              </div>
+              <textarea class="import-textarea" id="ta-hazure" placeholder="1行1項目で入力&#10;&#10;例：&#10;1分間無言&#10;囁き声で&#10;敬語禁止"></textarea>
+              <button class="import-btn hazure" onclick="importItems('hazure')">登録</button>
+              <div class="import-items-preview" id="preview-hazure"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 演出設定 ── -->
+      <div class="section-page" id="page-effects">
+        <div class="section-title">演出設定</div>
+        <div class="section-sub">演出の確率と優先度を設定します</div>
+        <div class="tab-row">
+          <button class="tab-btn active" onclick="showTab('prob')">確率</button>
+          <button class="tab-btn" onclick="showTab('effect')">演出</button>
+        </div>
+        <div class="tab-content active" id="tab-prob">
+          <table class="prob-table">
+            <tr><th>種別</th><th>割合</th><th>優先度</th></tr>
+            <tr class="prob-row">
+              <td><div class="prob-type atari">あたり</div></td>
+              <td><div class="prob-input-wrap"><input class="prob-input" id="pct-atari" type="number" min="0" max="100" value="30" oninput="updateTotal()"><span class="prob-pct">%</span></div></td>
+              <td><div class="priority-btns">
+                <button class="pri-btn" id="pri-atari-weak"   onclick="setPri('atari','weak')">弱</button>
+                <button class="pri-btn sel-mid" id="pri-atari-mid"    onclick="setPri('atari','mid')">中</button>
+                <button class="pri-btn" id="pri-atari-strong" onclick="setPri('atari','strong')">強</button>
+              </div></td>
+            </tr>
+            <tr class="prob-row">
+              <td><div class="prob-type futsuu">普通</div></td>
+              <td><div class="prob-input-wrap"><input class="prob-input" id="pct-futsuu" type="number" min="0" max="100" value="40" oninput="updateTotal()"><span class="prob-pct">%</span></div></td>
+              <td><div class="priority-btns">
+                <button class="pri-btn sel-weak" id="pri-futsuu-weak"   onclick="setPri('futsuu','weak')">弱</button>
+                <button class="pri-btn" id="pri-futsuu-mid"    onclick="setPri('futsuu','mid')">中</button>
+                <button class="pri-btn" id="pri-futsuu-strong" onclick="setPri('futsuu','strong')">強</button>
+              </div></td>
+            </tr>
+            <tr class="prob-row">
+              <td><div class="prob-type hazure">外れ</div></td>
+              <td><div class="prob-input-wrap"><input class="prob-input" id="pct-hazure" type="number" min="0" max="100" value="30" oninput="updateTotal()"><span class="prob-pct">%</span></div></td>
+              <td><div class="priority-btns">
+                <button class="pri-btn" id="pri-hazure-weak"   onclick="setPri('hazure','weak')">弱</button>
+                <button class="pri-btn" id="pri-hazure-mid"    onclick="setPri('hazure','mid')">中</button>
+                <button class="pri-btn sel-strong" id="pri-hazure-strong" onclick="setPri('hazure','strong')">強</button>
+              </div></td>
+            </tr>
+          </table>
+          <div class="prob-total">
+            合計 <span class="prob-total-num ok" id="prob-total">100</span>%
+            <span id="prob-warn" style="color:#ff3344;font-size:12px;display:none;">※ 合計が100%になるよう設定してください</span>
+          </div>
+          <div style="margin-top:20px;">
+            <button class="action-btn primary" onclick="saveProb()">確率を保存</button>
+          </div>
+        </div>
+        <div class="tab-content" id="tab-effect">
+          <div class="wip-block">🚧　演出タブは現在作成中です　🚧</div>
+        </div>
+      </div>
+
+      <!-- ── リハーサル ── -->
+      <div class="section-page" id="page-rehearsal">
+        <div class="section-title">リハーサル</div>
+        <div class="section-sub">演出の出る順番を最大10回まで事前に設定できます</div>
+        <div class="rehearsal-toggle-row">
+          <label class="toggle">
+            <input type="checkbox" id="rehearsal-toggle" onchange="toggleRehearsal()">
+            <div class="toggle-track"></div>
+            <div class="toggle-knob"></div>
+          </label>
+          <div class="toggle-label" id="rehearsal-status">リハーサルモード：OFF</div>
+          <div class="rehearsal-idx" id="rehearsal-idx"></div>
+        </div>
+        <div class="rehearsal-note">
+          有効にすると、下で設定した順番通りにあたり/普通/外れが出ます。<br>
+          「未設定」の回は通常の確率設定に従います。10回目以降は通常に戻ります。
+        </div>
+        <div class="rehearsal-grid" id="rehearsal-grid"></div>
+        <div class="rehearsal-actions">
+          <button class="action-btn primary" onclick="saveRehearsal()">保存</button>
+          <button class="action-btn" onclick="resetRehearsalIdx()">カウントリセット</button>
+          <button class="action-btn" onclick="clearRehearsal()">全クリア</button>
+        </div>
+      </div>
+
+    </div><!-- /settings-content -->
+  </div><!-- /settings-panel -->
+</div><!-- /settings -->
+
+<script>
+// ─── DATA ───
+const DEFAULT = {
+  plates: Array.from({length:6},(_,i)=>({
+    genre: `プレート${i+1}`,
+    atari:[],futsuu:[],hazure:[]
+  })),
+  probability:{
+    atari:{pct:30,priority:'mid'},
+    futsuu:{pct:40,priority:'weak'},
+    hazure:{pct:30,priority:'strong'}
+  },
+  rehearsal:{enabled:false,sequence:Array(10).fill(null),index:0},
+  plateCount:4
+};
+
+function loadSettings(){
+  try{ return JSON.parse(localStorage.getItem('tvmagnet'))||DEFAULT; }
+  catch(e){ return DEFAULT; }
+}
+function saveSettings(s){ localStorage.setItem('tvmagnet',JSON.stringify(s)); }
+function getSettings(){ return loadSettings(); }
+
+let S = loadSettings();
+let currentPlate = 0; // 0-indexed
+
+// ─── SETTINGS OPEN/CLOSE ───
+function openSettings(){
+  S = loadSettings();
+  document.getElementById('settings').classList.add('open');
+  renderPlateIndicators();
+  selectPlate(0);
+  loadProbUI();
+  loadRehearsalUI();
+}
+function closeSettings(){ document.getElementById('settings').classList.remove('open'); }
+
+function showSection(id){
+  document.querySelectorAll('.section-page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+// ─── PLATE INDICATORS ───
+function renderPlateIndicators(){
+  const wrap = document.getElementById('plate-indicators');
+  wrap.innerHTML='';
+  S.plates.forEach((pl,i)=>{
+    const total = pl.atari.length + pl.futsuu.length + pl.hazure.length;
+    const d = document.createElement('div');
+    d.className='plate-pill'+(i===currentPlate?' active':'');
+    d.onclick=()=>selectPlate(i);
+    d.innerHTML=`<div class="pill-label">プレート ${i+1}</div>
+      <div class="pill-genre">${pl.genre||'未設定'}</div>
+      <div class="pill-counts">
+        <span class="c-atari">あ:${pl.atari.length}</span>
+        <span style="color:#2a2a3a"> / </span>
+        <span class="c-futsuu">普:${pl.futsuu.length}</span>
+        <span style="color:#2a2a3a"> / </span>
+        <span class="c-hazure">外:${pl.hazure.length}</span>
+      </div>`;
+    wrap.appendChild(d);
+  });
+}
+
+function selectPlate(i){
+  currentPlate = i;
+  renderPlateIndicators();
+  const pl = S.plates[i];
+  document.getElementById('genre-input').value = pl.genre;
+  ['atari','futsuu','hazure'].forEach(type=>{
+    document.getElementById('count-'+type).textContent = pl[type].length+'件';
+    document.getElementById('ta-'+type).value = pl[type].join('\n');
+    updatePreview(type);
+  });
+}
+
+function saveGenre(){
+  S.plates[currentPlate].genre = document.getElementById('genre-input').value.trim()||`プレート${currentPlate+1}`;
+  saveSettings(S); renderPlateIndicators();
+}
+
+function importItems(type){
+  const raw = document.getElementById('ta-'+type).value;
+  const items = raw.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+  S.plates[currentPlate][type] = items;
+  document.getElementById('count-'+type).textContent = items.length+'件';
+  saveSettings(S); renderPlateIndicators(); updatePreview(type);
+}
+
+function updatePreview(type){
+  const items = S.plates[currentPlate][type];
+  const el = document.getElementById('preview-'+type);
+  el.textContent = items.length>0 ? items.slice(0,3).join('  /  ')+(items.length>3?'  …':'') : '';
+}
+
+// ─── PROBABILITY ───
+function loadProbUI(){
+  const p = S.probability;
+  ['atari','futsuu','hazure'].forEach(t=>{
+    document.getElementById('pct-'+t).value = p[t].pct;
+    ['weak','mid','strong'].forEach(lv=>{
+      const btn = document.getElementById(`pri-${t}-${lv}`);
+      btn.className = 'pri-btn'+(p[t].priority===lv?' sel-'+lv:'');
+    });
+  });
+  updateTotal();
+}
+
+function setPri(type,level){
+  S.probability[type].priority = level;
+  ['weak','mid','strong'].forEach(lv=>{
+    const btn = document.getElementById(`pri-${type}-${lv}`);
+    btn.className = 'pri-btn'+(lv===level?' sel-'+lv:'');
+  });
+}
+
+function updateTotal(){
+  const t = ['atari','futsuu','hazure'].reduce((s,k)=>s+(parseInt(document.getElementById('pct-'+k).value)||0),0);
+  const el = document.getElementById('prob-total');
+  el.textContent = t;
+  el.className = 'prob-total-num '+(t===100?'ok':'ng');
+  document.getElementById('prob-warn').style.display = t===100?'none':'inline';
+}
+
+function saveProb(){
+  ['atari','futsuu','hazure'].forEach(t=>{
+    S.probability[t].pct = parseInt(document.getElementById('pct-'+t).value)||0;
+  });
+  saveSettings(S);
+  // flash feedback
+  const btn = event.currentTarget;
+  const orig = btn.textContent; btn.textContent='✓ 保存しました';
+  setTimeout(()=>btn.textContent=orig,1500);
+}
+
+function showTab(id){
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['prob','effect'][i]===id));
+  document.querySelectorAll('.tab-content').forEach((c,i)=>c.classList.toggle('active',['tab-prob','tab-effect'][i]==='tab-'+id));
+}
+
+// ─── REHEARSAL ───
+function loadRehearsalUI(){
+  const r = S.rehearsal;
+  document.getElementById('rehearsal-toggle').checked = r.enabled;
+  document.getElementById('rehearsal-status').textContent = 'リハーサルモード：'+(r.enabled?'ON':'OFF');
+  document.getElementById('rehearsal-idx').textContent = r.enabled?`現在 ${r.index+1}回目`:'';
+  const grid = document.getElementById('rehearsal-grid');
+  grid.innerHTML='';
+  for(let i=0;i<10;i++){
+    const slot = document.createElement('div'); slot.className='rehearsal-slot';
+    const val = r.sequence[i]||'';
+    slot.innerHTML=`<div class="slot-num">${i+1}回目</div>
+      <select class="slot-select" id="slot-${i}">
+        <option value="">未設定</option>
+        <option value="atari" ${val==='atari'?'selected':''}>あたり</option>
+        <option value="futsuu" ${val==='futsuu'?'selected':''}>普通</option>
+        <option value="hazure" ${val==='hazure'?'selected':''}>外れ</option>
+      </select>`;
+    grid.appendChild(slot);
+  }
+}
+
+function toggleRehearsal(){
+  S.rehearsal.enabled = document.getElementById('rehearsal-toggle').checked;
+  document.getElementById('rehearsal-status').textContent='リハーサルモード：'+(S.rehearsal.enabled?'ON':'OFF');
+  document.getElementById('rehearsal-idx').textContent=S.rehearsal.enabled?`現在 ${S.rehearsal.index+1}回目`:'';
+  saveSettings(S);
+}
+
+function saveRehearsal(){
+  for(let i=0;i<10;i++) S.rehearsal.sequence[i]=document.getElementById('slot-'+i).value||null;
+  saveSettings(S);
+  const btn=event.currentTarget; const orig=btn.textContent; btn.textContent='✓ 保存';
+  setTimeout(()=>btn.textContent=orig,1500);
+}
+
+function resetRehearsalIdx(){ S.rehearsal.index=0; saveSettings(S); loadRehearsalUI(); }
+function clearRehearsal(){
+  S.rehearsal.sequence=Array(10).fill(null); S.rehearsal.index=0;
+  saveSettings(S); loadRehearsalUI();
+}
+</script>
+<script>
+(function(){
+  function fit(){
+    var s=Math.min(window.innerWidth/1920,window.innerHeight/1080);
+    document.body.style.transform="scale("+s+")";
+    document.body.style.transformOrigin="top left";
+    document.documentElement.style.overflow="hidden";
+  }
+  fit(); window.addEventListener("resize",fit);
+})();
+</script>
+</body>
+</html>

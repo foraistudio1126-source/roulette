@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>02 雷光ルーレット — TV MAGNET</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#0a0a0f;
+  color:#e0e0e0;
+  font-family:'Helvetica Neue',Arial,sans-serif;
+  width:1920px; height:1080px;
+  overflow:hidden;
+  position:relative;
+}
+canvas#bg { position:fixed; inset:0; pointer-events:none; z-index:0; }
+#title { position:fixed; top:16px; left:50%; transform:translateX(-50%); font-size:12px; color:#333; letter-spacing:6px; text-transform:uppercase; z-index:100; }
+#back { position:fixed; top:16px; left:24px; font-size:13px; color:#444; text-decoration:none; letter-spacing:2px; z-index:100; }
+#back:hover { color:#888; }
+
+#main {
+  position:relative; z-index:1;
+  width:100%; height:100%;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+}
+
+#ring-stage {
+  position:relative;
+  width:900px; height:900px;
+}
+
+canvas#rings { position:absolute; inset:0; }
+
+/* center core */
+#core {
+  position:absolute;
+  left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  width:140px; height:140px;
+  border-radius:50%;
+  background:radial-gradient(circle at 40% 35%, #1a1a2a, #050508);
+  border:2px solid #2a2a4a;
+  box-shadow:0 0 30px rgba(0,0,0,0.9), inset 0 0 20px rgba(0,0,0,0.8);
+  display:flex; align-items:center; justify-content:center;
+  z-index:10;
+  pointer-events:none;
+}
+#core-text {
+  font-size:14px; color:#333; letter-spacing:2px; text-align:center;
+  transition:all 0.5s;
+  padding:8px;
+}
+#core-text.accident { color:#ff3344; font-size:22px; font-weight:700; text-shadow:0 0 20px #ff3344; }
+#core-text.bonus { color:#3388ff; font-size:22px; font-weight:700; text-shadow:0 0 20px #3388ff; }
+
+/* controls */
+#controls {
+  position:fixed; bottom:30px; left:50%; transform:translateX(-50%);
+  display:flex; align-items:center; gap:40px; z-index:20;
+}
+.ctrl-label { font-size:13px; color:#555; letter-spacing:3px; text-transform:uppercase; }
+.btn {
+  padding:10px 28px;
+  border:1.5px solid #333;
+  background:linear-gradient(180deg,#18181f,#111118);
+  color:#aaa;
+  font-size:14px; letter-spacing:3px; text-transform:uppercase;
+  cursor:pointer; border-radius:3px; transition:all 0.2s;
+}
+.btn:hover { border-color:#555; color:#ddd; }
+.btn.spin-btn { border-color:#ff3344; color:#ff6677; padding:12px 48px; font-size:16px; font-weight:700; }
+.btn.spin-btn:hover { box-shadow:0 0 20px rgba(255,51,68,0.3); }
+.btn.spin-btn:disabled { border-color:#333; color:#444; cursor:not-allowed; }
+.count-display {
+  width:48px; height:36px;
+  background:#0d0d14; border:1px solid #2a2a3a;
+  display:flex; align-items:center; justify-content:center;
+  font-size:22px; font-weight:700; border-radius:2px;
+}
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<a href="index.html" id="back">← INDEX</a>
+<div id="title">02 — 雷光ルーレット / RAIKOU ROULETTE</div>
+
+<div id="main">
+  <div id="ring-stage">
+    <canvas id="rings" width="900" height="900"></canvas>
+    <div id="core"><div id="core-text">待機中</div></div>
+  </div>
+</div>
+
+<div id="controls">
+  <span class="ctrl-label">リング数</span>
+  <button class="btn" id="btn-minus">－</button>
+  <div class="count-display" id="count-display">3</div>
+  <button class="btn" id="btn-plus">＋</button>
+  <button class="btn spin-btn" id="btn-spin">SPIN</button>
+</div>
+
+<script>
+const ITEMS = [
+  {text:'アニソン',pol:'N'},{text:'方言',pol:'S'},{text:'無言1分',pol:'N'},
+  {text:'ロボット',pol:'S'},{text:'囁き声',pol:'N'},{text:'怒り',pol:'S'},
+  {text:'モノマネ',pol:'N'},{text:'超早口',pol:'S'},{text:'関西弁',pol:'N'},{text:'敬語禁止',pol:'S'},
+];
+
+const canvas = document.getElementById('rings');
+const ctx = canvas.getContext('2d');
+const CX = 450, CY = 450;
+const CORE_R = 75;
+const MAX_R = 430;
+
+let ringCount = 3;
+let spinning = false;
+let rings = [];
+
+// ring: { angle, speed, items, lockedIdx, locked, pol }
+function buildRings() {
+  rings = [];
+  for (let i = 0; i < ringCount; i++) {
+    const t = (ringCount === 1) ? 0 : i / (ringCount - 1);
+    const innerR = CORE_R + 20 + i * ((MAX_R - CORE_R - 20) / Math.max(ringCount, 1));
+    const outerR = innerR + ((MAX_R - CORE_R - 20) / Math.max(ringCount, 1)) - 6;
+    // shuffle items
+    const items = [...ITEMS].sort(() => Math.random() - 0.5);
+    rings.push({
+      innerR, outerR,
+      angle: Math.random() * Math.PI * 2,
+      speed: 0,
+      items,
+      locked: false,
+      lockedIdx: 0,
+      dir: i % 2 === 0 ? 1 : -1,
+      beamAngle: null,
+      beamAlpha: 0,
+    });
+  }
+}
+
+function drawRing(ring, idx) {
+  const { innerR, outerR, angle, items, locked, lockedIdx, dir, beamAngle, beamAlpha } = ring;
+  const n = items.length;
+  const segAngle = (Math.PI * 2) / n;
+
+  // draw segments
+  for (let j = 0; j < n; j++) {
+    const a0 = angle + j * segAngle;
+    const a1 = a0 + segAngle;
+    const item = items[j];
+    const isSelected = locked && j === lockedIdx;
+    const alpha = locked ? (isSelected ? 1 : 0.2) : 0.7;
+
+    // segment bg
+    ctx.beginPath();
+    ctx.arc(CX, CY, outerR, a0, a1);
+    ctx.arc(CX, CY, innerR, a1, a0, true);
+    ctx.closePath();
+    const baseColor = item.pol === 'N' ? `rgba(255,51,68,${alpha * 0.15})` : `rgba(51,136,255,${alpha * 0.15})`;
+    const selColor = item.pol === 'N' ? `rgba(255,51,68,${alpha * 0.35})` : `rgba(51,136,255,${alpha * 0.35})`;
+    ctx.fillStyle = isSelected ? selColor : baseColor;
+    ctx.fill();
+
+    // segment border
+    ctx.strokeStyle = item.pol === 'N' ? `rgba(255,80,100,${alpha * 0.6})` : `rgba(80,150,255,${alpha * 0.6})`;
+    ctx.lineWidth = isSelected ? 2.5 : 1;
+    ctx.stroke();
+
+    // text
+    const midAngle = a0 + segAngle / 2;
+    const textR = (innerR + outerR) / 2;
+    const tx = CX + Math.cos(midAngle) * textR;
+    const ty = CY + Math.sin(midAngle) * textR;
+    ctx.save();
+    ctx.translate(tx, ty);
+    ctx.rotate(midAngle + Math.PI / 2);
+    const ringW = outerR - innerR;
+    const fontSize = Math.max(10, Math.min(18, ringW * 0.5));
+    ctx.font = `${isSelected ? 'bold' : 'normal'} ${fontSize}px Helvetica Neue, Arial`;
+    ctx.fillStyle = item.pol === 'N' ? `rgba(255,120,130,${alpha})` : `rgba(100,170,255,${alpha})`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (!spinning || isSelected) ctx.fillText(item.text, 0, 0);
+    ctx.restore();
+  }
+
+  // ring border rings
+  ctx.beginPath();
+  ctx.arc(CX, CY, outerR, 0, Math.PI * 2);
+  ctx.strokeStyle = locked
+    ? (rings[idx].items[lockedIdx].pol === 'N' ? 'rgba(255,51,68,0.8)' : 'rgba(51,136,255,0.8)')
+    : 'rgba(60,60,80,0.6)';
+  ctx.lineWidth = locked ? 2.5 : 1;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(CX, CY, innerR, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(40,40,60,0.8)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // beam
+  if (beamAlpha > 0 && beamAngle !== null) {
+    const bx0 = CX + Math.cos(beamAngle) * (CORE_R - 5);
+    const by0 = CY + Math.sin(beamAngle) * (CORE_R - 5);
+    const bx1 = CX + Math.cos(beamAngle) * outerR;
+    const by1 = CY + Math.sin(beamAngle) * outerR;
+    ctx.save();
+    ctx.globalAlpha = beamAlpha;
+    const grad = ctx.createLinearGradient(bx0, by0, bx1, by1);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(1, 'transparent');
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 4;
+    ctx.shadowColor = '#fff';
+    ctx.shadowBlur = 20;
+    ctx.beginPath();
+    ctx.moveTo(bx0, by0);
+    ctx.lineTo(bx1, by1);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function render() {
+  ctx.clearRect(0, 0, 900, 900);
+  // center glow
+  const cg = ctx.createRadialGradient(CX,CY,0,CX,CY,CORE_R);
+  cg.addColorStop(0,'rgba(80,80,120,0.3)');
+  cg.addColorStop(1,'transparent');
+  ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(CX,CY,CORE_R,0,Math.PI*2); ctx.fill();
+
+  rings.forEach((ring, i) => drawRing(ring, i));
+
+  // outer decorative ring
+  ctx.beginPath();
+  ctx.arc(CX, CY, MAX_R + 8, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(30,30,50,0.8)';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  if (spinning || rings.some(r => !r.locked)) requestAnimationFrame(render);
+  else requestAnimationFrame(render);
+}
+
+function spinAll() {
+  if (spinning) return;
+  spinning = true;
+  document.getElementById('btn-spin').disabled = true;
+  const coreText = document.getElementById('core-text');
+  coreText.className = '';
+  coreText.textContent = '回転中';
+
+  rings.forEach((ring, i) => {
+    ring.locked = false;
+    ring.beamAlpha = 0;
+    ring.speed = (1.5 + Math.random() * 1) * ring.dir;
+  });
+
+  // stop rings one by one
+  const stopDelay = 1200;
+  rings.forEach((ring, i) => {
+    setTimeout(() => {
+      // decelerate
+      const decel = setInterval(() => {
+        ring.speed *= 0.92;
+        if (Math.abs(ring.speed) < 0.015) {
+          clearInterval(decel);
+          ring.speed = 0;
+          // snap to nearest segment
+          const n = ring.items.length;
+          const segAngle = (Math.PI * 2) / n;
+          const topAngle = -Math.PI / 2; // "top" direction
+          const normAngle = ((ring.angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+          const idx = Math.round((topAngle - normAngle + Math.PI * 20) / segAngle) % n;
+          ring.lockedIdx = ((idx % n) + n) % n;
+          ring.locked = true;
+          // beam flash
+          const segMid = ring.angle + (ring.lockedIdx + 0.5) * segAngle;
+          ring.beamAngle = topAngle;
+          ring.beamAlpha = 1;
+          const fadeBeam = setInterval(() => {
+            ring.beamAlpha -= 0.05;
+            if (ring.beamAlpha <= 0) { ring.beamAlpha = 0; clearInterval(fadeBeam); }
+          }, 30);
+          checkDone();
+        }
+      }, 30);
+    }, stopDelay + i * 600);
+  });
+}
+
+function checkDone() {
+  const allLocked = rings.every(r => r.locked);
+  if (!allLocked) return;
+  const results = rings.map(r => r.items[r.lockedIdx]);
+  const nCount = results.filter(r => r.pol === 'N').length;
+  const sCount = results.filter(r => r.pol === 'S').length;
+  const coreText = document.getElementById('core-text');
+  setTimeout(() => {
+    if (nCount === rings.length) {
+      coreText.textContent = '⚡大事故⚡'; coreText.className = 'accident';
+    } else if (sCount === rings.length) {
+      coreText.textContent = '⚡大事故⚡'; coreText.className = 'accident';
+    } else if (nCount === sCount) {
+      coreText.textContent = '✦ボーナス✦'; coreText.className = 'bonus';
+    } else {
+      coreText.textContent = 'RESULT'; coreText.className = '';
+    }
+    spinning = false;
+    document.getElementById('btn-spin').disabled = false;
+  }, 500);
+}
+
+// animation loop
+function loop() {
+  rings.forEach(ring => {
+    if (!ring.locked) ring.angle += ring.speed * 0.04;
+  });
+  render();
+  requestAnimationFrame(loop);
+}
+
+buildRings();
+loop();
+
+document.getElementById('btn-minus').onclick = () => {
+  if (ringCount > 1 && !spinning) { ringCount--; document.getElementById('count-display').textContent = ringCount; buildRings(); document.getElementById('core-text').textContent='待機中'; document.getElementById('core-text').className=''; }
+};
+document.getElementById('btn-plus').onclick = () => {
+  if (ringCount < 6 && !spinning) { ringCount++; document.getElementById('count-display').textContent = ringCount; buildRings(); document.getElementById('core-text').textContent='待機中'; document.getElementById('core-text').className=''; }
+};
+document.getElementById('btn-spin').onclick = spinAll;
+</script>
+<script>
+(function(){
+  function fit(){
+    var s=Math.min(window.innerWidth/1920,window.innerHeight/1080);
+    document.body.style.transform="scale("+s+")";
+    document.body.style.transformOrigin="top left";
+    document.body.style.width="1920px";
+    document.body.style.height="1080px";
+    document.body.style.overflow="hidden";
+    document.documentElement.style.overflow="hidden";
+    document.documentElement.style.background="#06060e";
+  }
+  fit(); window.addEventListener("resize",fit);
+})();
+</script>
+</body>
+</html>

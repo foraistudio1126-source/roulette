@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>09-A 引力 — TV MAGNET</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { width:1920px; height:1080px; overflow:hidden; background:#03030a; font-family:'Helvetica Neue',Arial,sans-serif; color:#e0e0e0; }
+#back { position:fixed; top:18px; left:28px; font-size:13px; color:#333; text-decoration:none; letter-spacing:2px; z-index:200; }
+#back:hover { color:#666; }
+#title { position:fixed; top:18px; left:50%; transform:translateX(-50%); font-size:12px; color:#222; letter-spacing:6px; z-index:200; }
+canvas { position:absolute; inset:0; }
+#ui { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:40px; z-index:100; }
+.btn { padding:11px 30px; border:1.5px solid #2a2a3a; background:linear-gradient(180deg,#141420,#0e0e1a); color:#777; font-size:14px; letter-spacing:3px; cursor:pointer; border-radius:4px; transition:all .2s; }
+.btn:hover { border-color:#444; color:#bbb; }
+#btn-spin { border-color:#cc44ff; color:#dd88ff; padding:13px 56px; font-size:17px; font-weight:700; letter-spacing:5px; }
+#btn-spin:hover { box-shadow:0 0 20px rgba(180,60,255,.4); }
+#btn-spin:disabled { border-color:#222; color:#333; box-shadow:none; cursor:not-allowed; }
+.lbl { font-size:13px; color:#444; letter-spacing:3px; }
+.cnt { width:52px; height:38px; background:#0a0a14; border:1px solid #222; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:700; border-radius:3px; }
+#result { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); font-size:64px; font-weight:900; letter-spacing:14px; color:#fff; text-shadow:0 0 40px #fff; opacity:0; transition:opacity .5s; pointer-events:none; z-index:50; text-align:center; }
+#result.accident { color:#ff3344; text-shadow:0 0 40px #ff3344, 0 0 80px #ff334455; }
+#result.bonus { color:#aa44ff; text-shadow:0 0 40px #aa44ff, 0 0 80px #aa44ff55; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<a href="index.html" id="back">← INDEX</a>
+<div id="title">09-A — 引力 / INRYOKU</div>
+<div id="result"></div>
+<div id="ui">
+  <span class="lbl">プレート数</span>
+  <button class="btn" id="btn-m">－</button>
+  <div class="cnt" id="cnt">4</div>
+  <button class="btn" id="btn-p">＋</button>
+  <button class="btn" id="btn-spin">ATTRACT</button>
+</div>
+<script>
+const ITEMS=[{t:'アニソン歌手',p:'N'},{t:'方言で話す',p:'S'},{t:'1分間無言',p:'N'},{t:'ロボット口調',p:'S'},{t:'囁き声',p:'N'},{t:'怒り口調',p:'S'},{t:'モノマネ',p:'N'},{t:'超早口',p:'S'},{t:'関西弁',p:'N'},{t:'敬語禁止',p:'S'}];
+const W=1920,H=1080,CX=960,CY=540;
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+canvas.width=W; canvas.height=H;
+
+let n=4,busy=false,plates=[],stars=[],shockwaves=[],coreR=60,coreGlow=0;
+
+// starfield
+for(let i=0;i<200;i++) stars.push({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.5,a:Math.random()});
+
+function getAngles(count){ return Array.from({length:count},(_,i)=>-Math.PI/2+(i/count)*Math.PI*2); }
+
+function buildPlates(){
+  plates=[];
+  const angles=getAngles(n);
+  const orbitR=380;
+  angles.forEach((a,i)=>{
+    const item=ITEMS[i%ITEMS.length];
+    plates.push({
+      a,// current orbit angle
+      targetA:a,
+      r:orbitR+Math.random()*30,// orbit radius
+      orbitSpeed:0.004*(i%2===0?1:-1),
+      phase:'idle',
+      x:CX+Math.cos(a)*(orbitR+Math.random()*30),
+      y:CY+Math.sin(a)*(orbitR+Math.random()*30),
+      item, alpha:1, scale:1,
+      locked:false, consumed:false,
+    });
+  });
+}
+
+let t=0;
+function drawCore(){
+  // outer glow
+  const g=ctx.createRadialGradient(CX,CY,0,CX,CY,coreR*3+coreGlow*80);
+  g.addColorStop(0,`rgba(${coreGlow>0.5?'180,80,255':'80,20,120'},${0.3+coreGlow*0.4})`);
+  g.addColorStop(0.4,`rgba(40,0,60,${0.2+coreGlow*0.3})`);
+  g.addColorStop(1,'transparent');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(CX,CY,coreR*4,0,Math.PI*2); ctx.fill();
+  // ring
+  ctx.beginPath(); ctx.arc(CX,CY,coreR+4,0,Math.PI*2);
+  ctx.strokeStyle=`rgba(${coreGlow>0.5?'200,100,255':'100,30,160'},${0.6+coreGlow*0.4})`;
+  ctx.lineWidth=2+coreGlow*3; ctx.stroke();
+  // core
+  const cg=ctx.createRadialGradient(CX,CY,0,CX,CY,coreR);
+  cg.addColorStop(0,`rgba(${coreGlow>0.5?'240,180,255':'30,0,40'},1)`);
+  cg.addColorStop(0.5,`rgba(20,0,30,1)`); cg.addColorStop(1,'rgba(5,0,10,1)');
+  ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(CX,CY,coreR,0,Math.PI*2); ctx.fill();
+  // gravitational distortion lines
+  for(let a=0;a<8;a++){
+    const ang=a*Math.PI/4+t*0.003;
+    ctx.beginPath(); ctx.moveTo(CX+Math.cos(ang)*(coreR+5),CY+Math.sin(ang)*(coreR+5));
+    ctx.lineTo(CX+Math.cos(ang)*(coreR+20+coreGlow*30),CY+Math.sin(ang)*(coreR+20+coreGlow*30));
+    ctx.strokeStyle=`rgba(180,80,255,${0.2+coreGlow*0.4})`; ctx.lineWidth=1; ctx.stroke();
+  }
+}
+
+function drawPlate(p){
+  if(p.consumed) return;
+  ctx.save();
+  ctx.translate(p.x,p.y);
+  ctx.scale(p.scale,p.scale);
+  ctx.globalAlpha=p.alpha;
+  const w=180,h=80;
+  // bg
+  const pol=p.item.p;
+  ctx.fillStyle=pol==='N'?'rgba(255,30,60,0.15)':'rgba(80,30,200,0.15)';
+  ctx.strokeStyle=pol==='N'?`rgba(255,80,100,${0.5+coreGlow*0.3})`:`rgba(100,80,255,${0.5+coreGlow*0.3})`;
+  ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.roundRect(-w/2,-h/2,w,h,6); ctx.fill(); ctx.stroke();
+  // text
+  ctx.fillStyle=pol==='N'?'#ffaaaa':'#aaaaff';
+  ctx.font='bold 22px Helvetica Neue,Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(p.item.t,0,-8);
+  ctx.font='11px Helvetica Neue,Arial';
+  ctx.fillStyle=pol==='N'?'rgba(255,150,160,0.7)':'rgba(150,150,255,0.7)';
+  ctx.fillText(pol+' 極',0,14);
+  ctx.restore();
+}
+
+function frame(){
+  ctx.clearRect(0,0,W,H);
+  // stars
+  stars.forEach(s=>{ s.a=Math.max(0,Math.min(1,s.a+(Math.random()-.5)*.05)); ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fillStyle=`rgba(255,255,255,${s.a*0.4})`; ctx.fill(); });
+  // grid warp near center
+  const gridA=0.04;
+  for(let gx=0;gx<W;gx+=80) for(let gy=0;gy<H;gy+=80){
+    const dx=gx-CX,dy=gy-CY,dist=Math.sqrt(dx*dx+dy*dy);
+    const warp=Math.max(0,(300-dist)/300)*20;
+    const wx=gx+dx/dist*warp*-0.3,wy=gy+dy/dist*warp*-0.3;
+    ctx.beginPath(); ctx.arc(wx||gx,wy||gy,1,0,Math.PI*2); ctx.fillStyle=`rgba(80,40,120,${gridA})`; ctx.fill();
+  }
+  // shockwaves
+  shockwaves=shockwaves.filter(sw=>{ sw.r+=6; sw.a-=0.025; if(sw.a<=0) return false;
+    ctx.beginPath(); ctx.arc(CX,CY,sw.r,0,Math.PI*2); ctx.strokeStyle=`rgba(200,100,255,${sw.a})`; ctx.lineWidth=2; ctx.stroke(); return true; });
+  drawCore();
+  // orbit lines
+  plates.forEach(p=>{ if(p.locked||p.consumed) return;
+    const lx=CX+Math.cos(p.a)*p.r,ly=CY+Math.sin(p.a)*p.r;
+    ctx.beginPath(); ctx.arc(CX,CY,p.r,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(80,40,120,0.12)`; ctx.lineWidth=1; ctx.setLineDash([4,12]); ctx.stroke(); ctx.setLineDash([]);
+  });
+  plates.forEach(drawPlate);
+  // idle orbit
+  plates.forEach(p=>{
+    if(p.phase==='idle'){ p.a+=p.orbitSpeed; p.x=CX+Math.cos(p.a)*p.r; p.y=CY+Math.sin(p.a)*p.r; }
+    else if(p.phase==='falling'){
+      const dx=CX-p.x,dy=CY-p.y,dist=Math.sqrt(dx*dx+dy*dy);
+      const spd=Math.max(8,(400-dist)*0.04);
+      p.x+=dx/dist*spd; p.y+=dy/dist*spd;
+      p.scale=Math.max(0.3,dist/200);
+      if(dist<coreR+10){ p.consumed=true; p.phase='done'; coreGlow=Math.min(1,coreGlow+0.25);
+        shockwaves.push({r:coreR,a:0.8}); shockwaves.push({r:coreR*0.5,a:0.9});
+        onLocked(p); }
+    }
+  });
+  coreGlow=Math.max(0,coreGlow-0.008);
+  t++; requestAnimationFrame(frame);
+}
+
+let lockedCount=0,results=[];
+function onLocked(p){ lockedCount++; results.push(p.item);
+  if(lockedCount===plates.length) setTimeout(showResult,600); }
+
+function showResult(){
+  const nN=results.filter(r=>r.p==='N').length,nS=results.filter(r=>r.p==='S').length;
+  const el=document.getElementById('result');
+  coreGlow=1;
+  shockwaves.push({r:0,a:1},{r:0,a:.8},{r:0,a:.6});
+  if(nN===results.length){el.textContent='⚡ N極フルコンプ — 大事故 ⚡';el.className='accident';}
+  else if(nS===results.length){el.textContent='⚡ S極フルコンプ — 大事故 ⚡';el.className='accident';}
+  else if(nN===nS&&results.length%2===0){el.textContent='✦ 完全対極 — ボーナス ✦';el.className='bonus';}
+  else{el.textContent=results.map(r=>r.t).join(' × ');el.style.fontSize=results.length>3?'36px':'56px';el.className='';}
+  el.style.opacity='1';
+  busy=false; document.getElementById('btn-spin').disabled=false;
+}
+
+function startSpin(){
+  if(busy) return; busy=true;
+  document.getElementById('btn-spin').disabled=true;
+  document.getElementById('result').style.opacity='0';
+  coreGlow=0; lockedCount=0; results=[];
+  buildPlates();
+  setTimeout(()=>{ plates.forEach((p,i)=>setTimeout(()=>{ p.phase='falling'; },i*400)); },800);
+}
+
+document.getElementById('btn-m').onclick=()=>{ if(n>1&&!busy){n--;document.getElementById('cnt').textContent=n;document.getElementById('result').style.opacity='0';buildPlates();} };
+document.getElementById('btn-p').onclick=()=>{ if(n<6&&!busy){n++;document.getElementById('cnt').textContent=n;document.getElementById('result').style.opacity='0';buildPlates();} };
+document.getElementById('btn-spin').onclick=startSpin;
+buildPlates(); frame();
+</script>
+<script>(function(){function fit(){var s=Math.min(window.innerWidth/1920,window.innerHeight/1080);document.body.style.transform="scale("+s+")";document.body.style.transformOrigin="top left";document.documentElement.style.overflow="hidden";}fit();window.addEventListener("resize",fit);})();</script>
+</body>
+</html>

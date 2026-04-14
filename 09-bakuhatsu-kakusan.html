@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>09 爆発拡散 — TV MAGNET</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#04040a;
+  color:#e0e0e0;
+  font-family:'Helvetica Neue',Arial,sans-serif;
+  width:1920px; height:1080px;
+  overflow:hidden;
+  position:relative;
+}
+#back { position:fixed; top:16px; left:24px; font-size:13px; color:#444; text-decoration:none; letter-spacing:2px; z-index:200; }
+#back:hover { color:#888; }
+#title { position:fixed; top:16px; left:50%; transform:translateX(-50%); font-size:12px; color:#333; letter-spacing:6px; text-transform:uppercase; z-index:200; }
+
+canvas#bg { position:absolute; inset:0; z-index:0; pointer-events:none; }
+
+#stage { position:relative; z-index:1; width:100%; height:100%; }
+
+/* magnetic core */
+#core {
+  position:absolute; left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  width:100px; height:100px; border-radius:50%;
+  background:radial-gradient(circle at 40% 35%, #2a1a3a, #0a0510 60%, #04040a);
+  border:2px solid #3a2a5a;
+  box-shadow:0 0 40px rgba(100,50,180,0.4), inset 0 0 20px rgba(0,0,0,0.8);
+  z-index:20;
+  display:flex; align-items:center; justify-content:center;
+}
+#core-glow {
+  width:60px; height:60px; border-radius:50%;
+  background:radial-gradient(circle, rgba(150,80,255,0.4), transparent);
+  animation:corePulse 2s infinite;
+}
+@keyframes corePulse {
+  0%,100%{transform:scale(1);opacity:0.6} 50%{transform:scale(1.3);opacity:1}
+}
+
+/* result overlay over core */
+#core-result {
+  position:absolute; left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  z-index:30; pointer-events:none;
+  text-align:center; opacity:0;
+  transition:opacity 0.5s;
+  width:400px;
+}
+#core-result-text {
+  font-size:52px; font-weight:900; letter-spacing:10px;
+  color:#fff; text-shadow:0 0 40px #fff;
+}
+#core-result.accident #core-result-text { color:#ff3344; text-shadow:0 0 40px #ff3344, 0 0 80px #ff334455; }
+#core-result.bonus #core-result-text { color:#3388ff; text-shadow:0 0 40px #3388ff, 0 0 80px #3388ff55; }
+
+/* plates */
+.plate {
+  position:absolute;
+  width:200px; height:90px;
+  background:linear-gradient(145deg,#111120,#0a0a16);
+  border:2px solid #2a2a4a;
+  border-radius:4px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  transform:translate(-50%,-50%);
+  gap:6px;
+  transition:border-color 0.3s, box-shadow 0.3s;
+  z-index:15;
+  will-change:transform, left, top;
+}
+.plate.locked-N { border-color:#ff334488; box-shadow:0 0 25px rgba(255,51,68,0.4); }
+.plate.locked-S { border-color:#3388ff88; box-shadow:0 0 25px rgba(51,136,255,0.4); }
+.plate-num { font-size:10px; letter-spacing:2px; color:#222; }
+.plate-text {
+  font-size:22px; font-weight:700; letter-spacing:2px; color:#555;
+  text-align:center; padding:0 8px; line-height:1.2;
+  transition:color 0.3s;
+}
+.plate.locked-N .plate-text { color:#ff8888; text-shadow:0 0 15px #ff334455; }
+.plate.locked-S .plate-text { color:#88aaff; text-shadow:0 0 15px #3388ff55; }
+.plate-pol { font-size:10px; letter-spacing:2px; color:#222; }
+.plate.locked-N .plate-pol { color:#ff6677; }
+.plate.locked-S .plate-pol { color:#66aaff; }
+
+#controls {
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  display:flex; align-items:center; gap:40px; z-index:100;
+}
+.btn { padding:10px 28px; border:1.5px solid #333; background:linear-gradient(180deg,#18181f,#111118); color:#aaa; font-size:14px; letter-spacing:3px; text-transform:uppercase; cursor:pointer; border-radius:3px; transition:all 0.2s; }
+.btn:hover { border-color:#555; color:#ddd; }
+.btn.spin-btn { border-color:#aa44ff; color:#cc88ff; padding:12px 48px; font-size:16px; font-weight:700; }
+.btn.spin-btn:hover { box-shadow:0 0 20px rgba(170,68,255,0.3); }
+.btn.spin-btn:disabled { border-color:#333; color:#444; cursor:not-allowed; }
+.count-display { width:48px; height:36px; background:#0d0d14; border:1px solid #2a2a3a; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700; border-radius:2px; }
+.ctrl-label { font-size:13px; color:#555; letter-spacing:3px; text-transform:uppercase; }
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<a href="index.html" id="back">← INDEX</a>
+<div id="title">09 — 爆発拡散 / BAKUHATSU KAKUSAN</div>
+<div id="stage">
+  <div id="core"><div id="core-glow"></div></div>
+  <div id="core-result"><div id="core-result-text"></div></div>
+</div>
+<div id="controls">
+  <span class="ctrl-label">プレート数</span>
+  <button class="btn" id="btn-minus">－</button>
+  <div class="count-display" id="count-display">4</div>
+  <button class="btn" id="btn-plus">＋</button>
+  <button class="btn spin-btn" id="btn-spin">LAUNCH</button>
+</div>
+
+<script>
+const ITEMS = [
+  {text:'アニソン歌手',pol:'N'},{text:'方言で話す',pol:'S'},
+  {text:'1分間無言',pol:'N'},{text:'ロボット口調',pol:'S'},
+  {text:'囁き声',pol:'N'},{text:'怒り口調',pol:'S'},
+  {text:'モノマネ',pol:'N'},{text:'超早口',pol:'S'},
+  {text:'関西弁',pol:'N'},{text:'敬語禁止',pol:'S'},
+];
+const CX=960, CY=540;
+const OUTER_R=400, INNER_R=130;
+let plateCount=4, spinning=false;
+let plateData=[];
+const bgCanvas=document.getElementById('bg');
+const bgCtx=bgCanvas.getContext('2d');
+bgCanvas.width=1920; bgCanvas.height=1080;
+let shockwaves=[];
+
+function getAngles(n){
+  return Array.from({length:n},(_,i)=> -Math.PI/2 + (i/n)*Math.PI*2);
+}
+
+function buildPlates(){
+  document.querySelectorAll('.plate').forEach(e=>e.remove());
+  plateData=[];
+  const angles=getAngles(plateCount);
+  angles.forEach((ang,i)=>{
+    const plate=document.createElement('div');
+    plate.className='plate';
+    plate.innerHTML=`<div class="plate-num">PLT-${String(i+1).padStart(2,'0')}</div><div class="plate-text">待機中</div><div class="plate-pol">—</div>`;
+    document.getElementById('stage').appendChild(plate);
+    const ox=CX+Math.cos(ang)*OUTER_R;
+    const oy=CY+Math.sin(ang)*OUTER_R;
+    plate.style.left=ox+'px'; plate.style.top=oy+'px';
+    plateData.push({el:plate, angle:ang, outerX:ox, outerY:oy, innerX:CX+Math.cos(ang)*INNER_R, innerY:CY+Math.sin(ang)*INNER_R, locked:false, item:null, cycleIdx:i, currentX:ox, currentY:oy});
+  });
+}
+
+// draw rails + bg
+function drawBg(){
+  bgCtx.clearRect(0,0,1920,1080);
+  // rails
+  plateData.forEach(pd=>{
+    const grad=bgCtx.createLinearGradient(CX,CY,pd.outerX,pd.outerY);
+    grad.addColorStop(0,'rgba(120,60,200,0.3)');
+    grad.addColorStop(1,'rgba(120,60,200,0.05)');
+    bgCtx.beginPath();
+    bgCtx.moveTo(CX,CY); bgCtx.lineTo(pd.outerX,pd.outerY);
+    bgCtx.strokeStyle=grad; bgCtx.lineWidth=2;
+    bgCtx.stroke();
+    // rail ticks
+    for(let t=1;t<5;t++){
+      const tx=CX+(pd.outerX-CX)*(t/5);
+      const ty=CY+(pd.outerY-CY)*(t/5);
+      bgCtx.beginPath(); bgCtx.arc(tx,ty,3,0,Math.PI*2);
+      bgCtx.fillStyle='rgba(80,40,140,0.4)'; bgCtx.fill();
+    }
+  });
+  // shockwaves
+  shockwaves=shockwaves.filter(sw=>{
+    sw.r+=8; sw.alpha-=0.03;
+    if(sw.alpha<=0) return false;
+    bgCtx.beginPath(); bgCtx.arc(sw.x,sw.y,sw.r,0,Math.PI*2);
+    bgCtx.strokeStyle=`${sw.color}${Math.floor(sw.alpha*255).toString(16).padStart(2,'0')}`;
+    bgCtx.lineWidth=3; bgCtx.stroke();
+    return true;
+  });
+}
+
+let bgRaf;
+function bgLoop(){bgDraw(); bgRaf=requestAnimationFrame(bgLoop);}
+function bgDraw(){drawBg();}
+bgLoop();
+
+// animate plate sliding
+function animatePlate(pd, fromX, fromY, toX, toY, dur, easing, onDone){
+  const start=performance.now();
+  function frame(now){
+    const t=Math.min((now-start)/dur,1);
+    let e;
+    if(easing==='in') e=t*t*t;
+    else if(easing==='out') e=1-Math.pow(1-t,3);
+    else e=t;
+    pd.currentX=fromX+(toX-fromX)*e;
+    pd.currentY=fromY+(toY-fromY)*e;
+    pd.el.style.left=pd.currentX+'px';
+    pd.el.style.top=pd.currentY+'px';
+    if(t<1) requestAnimationFrame(frame);
+    else { pd.el.style.left=toX+'px'; pd.el.style.top=toY+'px'; if(onDone) onDone(); }
+  }
+  requestAnimationFrame(frame);
+}
+
+let cycleIv;
+function startCycling(){
+  cycleIv=setInterval(()=>{
+    plateData.forEach(pd=>{
+      if(!pd.locked){
+        pd.cycleIdx=(pd.cycleIdx+1)%ITEMS.length;
+        pd.el.querySelector('.plate-text').textContent=ITEMS[pd.cycleIdx].text;
+      }
+    });
+  },80);
+}
+function stopCycling(){clearInterval(cycleIv);}
+
+function spinAll(){
+  if(spinning) return;
+  spinning=true;
+  document.getElementById('btn-spin').disabled=true;
+  document.getElementById('core-result').style.opacity='0';
+  document.getElementById('core-result').className='';
+  // reset plates to outer pos
+  plateData.forEach(pd=>{
+    pd.locked=false; pd.item=null; pd.el.className='plate';
+    pd.el.style.left=pd.outerX+'px'; pd.el.style.top=pd.outerY+'px';
+    pd.el.querySelector('.plate-text').textContent='待機中';
+    pd.el.querySelector('.plate-pol').textContent='—';
+  });
+  startCycling();
+
+  const results=[];
+  plateData.forEach((pd,i)=>{
+    setTimeout(()=>{
+      const item=ITEMS[Math.floor(Math.random()*ITEMS.length)];
+      pd.item=item; pd.locked=true;
+      pd.el.querySelector('.plate-pol').textContent=`${item.pol}極`;
+      stopCycling(); // stop cycling on hit (visual)
+      pd.el.querySelector('.plate-text').textContent=item.text;
+      pd.el.classList.add(`locked-${item.pol}`);
+      // slam inward
+      animatePlate(pd,pd.outerX,pd.outerY,pd.innerX,pd.innerY,300,'in',()=>{
+        // shockwave at core on impact
+        shockwaves.push({x:CX,y:CY,r:20,alpha:0.8,color:item.pol==='N'?'#ff3344':'#3388ff'});
+        shockwaves.push({x:CX,y:CY,r:10,alpha:0.6,color:'#ffffff'});
+      });
+      results.push(item);
+      if(results.length===plateData.length) setTimeout(()=>onAllDone(results),600);
+      // restart cycling for unlocked ones
+      startCycling();
+    }, 1200+i*600);
+  });
+}
+
+function onAllDone(results){
+  stopCycling();
+  const nC=results.filter(r=>r.pol==='N').length,sC=results.filter(r=>r.pol==='S').length;
+  const cr=document.getElementById('core-result');
+  const ct=document.getElementById('core-result-text');
+  if(nC===results.length){ct.textContent='⚡大事故⚡';cr.className='accident';}
+  else if(sC===results.length){ct.textContent='⚡大事故⚡';cr.className='accident';}
+  else if(nC===sC&&results.length%2===0){ct.textContent='✦ボーナス✦';cr.className='bonus';}
+  else{ct.textContent=results.map(r=>r.text).join('×');cr.className='';ct.style.fontSize='28px';}
+  cr.style.opacity='1';
+  // explode plates back out
+  setTimeout(()=>{
+    plateData.forEach(pd=>{
+      animatePlate(pd,pd.innerX,pd.innerY,pd.outerX,pd.outerY,500,'out');
+    });
+    spinning=false; document.getElementById('btn-spin').disabled=false;
+  },1800);
+}
+
+document.getElementById('btn-minus').onclick=()=>{if(plateCount>1&&!spinning){plateCount--;document.getElementById('count-display').textContent=plateCount;document.getElementById('core-result').style.opacity='0';buildPlates();}};
+document.getElementById('btn-plus').onclick=()=>{if(plateCount<6&&!spinning){plateCount++;document.getElementById('count-display').textContent=plateCount;document.getElementById('core-result').style.opacity='0';buildPlates();}};
+document.getElementById('btn-spin').onclick=spinAll;
+buildPlates();
+</script>
+<script>
+(function(){
+  function fit(){
+    var s=Math.min(window.innerWidth/1920,window.innerHeight/1080);
+    document.body.style.transform="scale("+s+")";
+    document.body.style.transformOrigin="top left";
+    document.body.style.width="1920px";
+    document.body.style.height="1080px";
+    document.body.style.overflow="hidden";
+    document.documentElement.style.overflow="hidden";
+    document.documentElement.style.background="#06060e";
+  }
+  fit(); window.addEventListener("resize",fit);
+})();
+</script>
+</body>
+</html>

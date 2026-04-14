@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>09-B 極性 — TV MAGNET</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { width:1920px; height:1080px; overflow:hidden; background:#04040c; font-family:'Helvetica Neue',Arial,sans-serif; color:#e0e0e0; }
+#back { position:fixed; top:18px; left:28px; font-size:13px; color:#333; text-decoration:none; letter-spacing:2px; z-index:200; }
+#back:hover { color:#666; }
+#title { position:fixed; top:18px; left:50%; transform:translateX(-50%); font-size:12px; color:#222; letter-spacing:6px; z-index:200; }
+canvas#bg { position:absolute; inset:0; z-index:0; }
+
+/* hemispheres */
+#hemi-n { position:absolute; left:0; right:0; top:0; height:50%; background:radial-gradient(ellipse at 50% 80%,rgba(255,51,68,0.07) 0%,transparent 70%); pointer-events:none; z-index:1; }
+#hemi-s { position:absolute; left:0; right:0; bottom:0; height:50%; background:radial-gradient(ellipse at 50% 20%,rgba(51,136,255,0.07) 0%,transparent 70%); pointer-events:none; z-index:1; }
+
+/* equator bar */
+#equator { position:absolute; left:0; right:0; top:50%; transform:translateY(-50%); height:4px; background:linear-gradient(90deg,transparent 5%,rgba(255,255,255,0.15) 50%,transparent 95%); z-index:10; }
+#equator-glow { position:absolute; left:0; right:0; top:50%; transform:translateY(-50%); height:60px; background:linear-gradient(180deg,transparent,rgba(255,255,255,0.04),transparent); z-index:9; pointer-events:none; transition:background .3s; }
+#equator-glow.active { background:linear-gradient(180deg,transparent,rgba(255,200,100,0.12),transparent); }
+
+/* labels */
+#lbl-n { position:absolute; left:60px; top:30px; font-size:80px; font-weight:900; color:rgba(255,51,68,0.08); letter-spacing:4px; z-index:2; }
+#lbl-s { position:absolute; left:60px; bottom:30px; font-size:80px; font-weight:900; color:rgba(51,136,255,0.08); letter-spacing:4px; z-index:2; }
+
+/* plates container */
+#plates-n, #plates-s { position:absolute; left:0; right:0; display:flex; justify-content:space-evenly; align-items:center; z-index:20; pointer-events:none; }
+#plates-n { top:100px; height:380px; align-items:flex-start; padding-top:40px; }
+#plates-s { bottom:100px; height:380px; align-items:flex-end; padding-bottom:40px; }
+
+.plate {
+  width:220px; height:100px;
+  background:linear-gradient(145deg,#0d0d1c,#080814);
+  border-radius:6px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+  position:relative;
+  transition:border-color .3s, box-shadow .3s;
+}
+.plate.N { border:2px solid rgba(255,51,68,0.3); }
+.plate.S { border:2px solid rgba(51,136,255,0.3); }
+.plate.locked.N { border-color:rgba(255,51,68,0.8); box-shadow:0 0 30px rgba(255,51,68,0.4); }
+.plate.locked.S { border-color:rgba(51,136,255,0.8); box-shadow:0 0 30px rgba(51,136,255,0.4); }
+.p-text { font-size:26px; font-weight:700; letter-spacing:2px; color:#888; transition:color .3s; text-align:center; padding:0 10px; }
+.plate.N.locked .p-text { color:#ffaaaa; text-shadow:0 0 16px #ff334466; }
+.plate.S.locked .p-text { color:#aabbff; text-shadow:0 0 16px #3366ff66; }
+.p-pol { font-size:11px; letter-spacing:3px; }
+.plate.N .p-pol { color:rgba(255,80,100,0.6); }
+.plate.S .p-pol { color:rgba(80,120,255,0.6); }
+.plate.N.locked .p-pol { color:#ff7788; }
+.plate.S.locked .p-pol { color:#7799ff; }
+.p-flash { position:absolute; inset:0; background:#fff; opacity:0; border-radius:6px; pointer-events:none; }
+
+/* result */
+#result { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:60; pointer-events:none; opacity:0; text-align:center; transition:opacity .5s; }
+#result-text { font-size:58px; font-weight:900; letter-spacing:12px; color:#fff; text-shadow:0 0 40px #fff; }
+#result.accident #result-text { color:#ff3344; text-shadow:0 0 40px #ff3344, 0 0 80px #ff334455; }
+#result.bonus #result-text { color:#3388ff; text-shadow:0 0 40px #3388ff, 0 0 80px #3388ff55; }
+
+#ui { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:40px; z-index:100; }
+.btn { padding:11px 30px; border:1.5px solid #2a2a3a; background:linear-gradient(180deg,#141420,#0e0e1a); color:#777; font-size:14px; letter-spacing:3px; cursor:pointer; border-radius:4px; transition:all .2s; }
+.btn:hover { border-color:#444; color:#bbb; }
+#btn-spin { border-color:#ff3344; color:#ff6677; padding:13px 56px; font-size:17px; font-weight:700; letter-spacing:5px; }
+#btn-spin:hover { box-shadow:0 0 20px rgba(255,51,68,.4); }
+#btn-spin:disabled { border-color:#222; color:#333; box-shadow:none; cursor:not-allowed; }
+.lbl { font-size:13px; color:#444; letter-spacing:3px; }
+.cnt { width:52px; height:38px; background:#0a0a14; border:1px solid #222; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:700; border-radius:3px; }
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<div id="hemi-n"></div><div id="hemi-s"></div>
+<div id="equator"></div><div id="equator-glow"></div>
+<div id="lbl-n">N</div><div id="lbl-s">S</div>
+<div id="plates-n"></div>
+<div id="plates-s"></div>
+<div id="result"><div id="result-text"></div></div>
+<a href="index.html" id="back">← INDEX</a>
+<div id="title">09-B — 極性 / KYOKUSEI</div>
+<div id="ui">
+  <span class="lbl">プレート数</span>
+  <button class="btn" id="btn-m">－</button>
+  <div class="cnt" id="cnt">4</div>
+  <button class="btn" id="btn-p">＋</button>
+  <button class="btn" id="btn-spin">COLLIDE</button>
+</div>
+<script>
+const ITEMS=[{t:'アニソン歌手',p:'N'},{t:'方言で話す',p:'S'},{t:'1分間無言',p:'N'},{t:'ロボット口調',p:'S'},{t:'囁き声',p:'N'},{t:'怒り口調',p:'S'},{t:'モノマネ',p:'N'},{t:'超早口',p:'S'},{t:'関西弁',p:'N'},{t:'敬語禁止',p:'S'}];
+const bgC=document.getElementById('bg'); const bgCtx=bgC.getContext('2d'); bgC.width=1920; bgC.height=1080;
+let n=4,busy=false,plateEls=[],spark=[];
+
+// draw bg arcs
+function drawBg(){
+  bgCtx.clearRect(0,0,1920,1080);
+  // field lines N
+  for(let i=0;i<6;i++){
+    const x=160+i*260,spread=80+i*20;
+    bgCtx.beginPath(); bgCtx.moveTo(x,0); bgCtx.bezierCurveTo(x-spread,200,x-spread,340,x,540); bgCtx.strokeStyle='rgba(255,51,68,0.06)'; bgCtx.lineWidth=1.5; bgCtx.stroke();
+  }
+  // field lines S
+  for(let i=0;i<6;i++){
+    const x=160+i*260,spread=80+i*20;
+    bgCtx.beginPath(); bgCtx.moveTo(x,1080); bgCtx.bezierCurveTo(x-spread,880,x-spread,740,x,540); bgCtx.strokeStyle='rgba(51,136,255,0.06)'; bgCtx.lineWidth=1.5; bgCtx.stroke();
+  }
+  // sparks
+  spark=spark.filter(s=>{ s.x+=s.vx; s.y+=s.vy; s.life-=0.04;
+    if(s.life<=0) return false;
+    bgCtx.beginPath(); bgCtx.arc(s.x,s.y,2,0,Math.PI*2);
+    bgCtx.fillStyle=`rgba(255,220,100,${s.life})`; bgCtx.fill(); return true; });
+}
+setInterval(drawBg,30);
+
+function build(){
+  const pn=document.getElementById('plates-n'); const ps=document.getElementById('plates-s');
+  pn.innerHTML=''; ps.innerHTML=''; plateEls=[];
+  const nN=Math.ceil(n/2),nS=Math.floor(n/2);
+  for(let i=0;i<nN;i++){
+    const item=ITEMS[(i*2)%ITEMS.length];
+    const d=makePlate(item,'N',i); pn.appendChild(d.el); plateEls.push(d);
+  }
+  for(let i=0;i<nS;i++){
+    const item=ITEMS[(i*2+1)%ITEMS.length];
+    const d=makePlate(item,'S',i); ps.appendChild(d.el); plateEls.push(d);
+  }
+}
+function makePlate(item,side,idx){
+  const el=document.createElement('div');
+  el.className=`plate ${side}`;
+  el.innerHTML=`<div class="p-text">${item.t}</div><div class="p-pol">${side} 極</div><div class="p-flash"></div>`;
+  return {el,item,side,locked:false};
+}
+
+let cycleIv;
+function startCycle(){
+  cycleIv=setInterval(()=>{ plateEls.forEach((pd,i)=>{ if(!pd.locked){ const it=ITEMS[(Math.floor(Date.now()/120)+i*3)%ITEMS.length]; pd.el.querySelector('.p-text').textContent=it.t; }});},120);
+}
+function stopCycle(){clearInterval(cycleIv);}
+
+function collide(){
+  if(busy)return; busy=true;
+  document.getElementById('btn-spin').disabled=true;
+  document.getElementById('result').style.opacity='0';
+  document.getElementById('result').className='';
+  document.getElementById('equator-glow').className='';
+  plateEls.forEach(pd=>{pd.locked=false;pd.el.classList.remove('locked');});
+  startCycle();
+  const results=[];
+  plateEls.forEach((pd,i)=>{
+    setTimeout(()=>{
+      stopCycle();
+      const item=ITEMS[Math.floor(Math.random()*ITEMS.length)];
+      pd.item=item; pd.locked=true;
+      pd.el.classList.add('locked');
+      pd.el.querySelector('.p-text').textContent=item.t;
+      pd.el.querySelector('.p-pol').textContent=item.p+' 極';
+      const fl=pd.el.querySelector('.p-flash'); fl.style.opacity='.7'; setTimeout(()=>fl.style.opacity='0',120);
+      document.getElementById('equator-glow').className='active';
+      // sparks at center
+      for(let s=0;s<8;s++) spark.push({x:960,y:540,vx:(Math.random()-.5)*12,vy:(Math.random()-.5)*12,life:1});
+      results.push(item); startCycle();
+      if(results.length===plateEls.length){stopCycle();setTimeout(()=>showResult(results),500);}
+    },1200+i*600);
+  });
+}
+function showResult(results){
+  const nN=results.filter(r=>r.p==='N').length,nS=results.filter(r=>r.p==='S').length;
+  const el=document.getElementById('result'),t=document.getElementById('result-text');
+  if(nN===results.length){t.textContent='⚡ N極フルコンプ — 大事故 ⚡';el.className='accident';}
+  else if(nS===results.length){t.textContent='⚡ S極フルコンプ — 大事故 ⚡';el.className='accident';}
+  else if(nN===nS&&results.length%2===0){t.textContent='✦ 完全対極 — ボーナス ✦';el.className='bonus';}
+  else{t.textContent=results.map(r=>r.t).join(' × ');t.style.fontSize=results.length>3?'32px':'50px';el.className='';}
+  el.style.opacity='1';
+  busy=false; document.getElementById('btn-spin').disabled=false;
+}
+document.getElementById('btn-m').onclick=()=>{if(n>2&&!busy){n--;document.getElementById('cnt').textContent=n;document.getElementById('result').style.opacity='0';build();}};
+document.getElementById('btn-p').onclick=()=>{if(n<6&&!busy){n++;document.getElementById('cnt').textContent=n;document.getElementById('result').style.opacity='0';build();}};
+document.getElementById('btn-spin').onclick=collide;
+build();
+</script>
+<script>(function(){function fit(){var s=Math.min(window.innerWidth/1920,window.innerHeight/1080);document.body.style.transform="scale("+s+")";document.body.style.transformOrigin="top left";document.documentElement.style.overflow="hidden";}fit();window.addEventListener("resize",fit);})();</script>
+</body>
+</html>
