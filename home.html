@@ -151,6 +151,29 @@ body::before{content:'';position:fixed;inset:0;
   padding:40px;text-align:center;border:1px dashed #1a1a28;border-radius:8px;color:#2a2a3a;
   font-size:14px;letter-spacing:3px;}
 
+/* ─── EFFECT TAB ─── */
+.eff-section-label{font-size:12px;color:#444;letter-spacing:3px;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid #141420;}
+.eff-name-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:36px;}
+.eff-name-card{background:#0d0d1c;border:1px solid #1a1a28;border-radius:6px;padding:16px;}
+.eff-name-level{font-size:10px;color:#2a2a3a;letter-spacing:3px;margin-bottom:8px;}
+.eff-name-preview{font-size:11px;color:#333;margin-top:6px;letter-spacing:1px;}
+.eff-name-input{
+  width:100%;padding:8px 12px;background:#08080f;border:1px solid #1e1e30;border-radius:4px;
+  color:#e0e0e0;font-size:15px;letter-spacing:2px;outline:none;}
+.eff-name-input:focus{border-color:#3388ff;}
+.eff-mode-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:28px;}
+.eff-mode-card{
+  position:relative;padding:18px;border:1px solid #1a1a28;border-radius:8px;background:#0d0d1c;
+  cursor:pointer;transition:all .2s;
+}
+.eff-mode-card:hover{border-color:#2a2a4a;box-shadow:0 0 24px rgba(51,136,255,0.08);}
+.eff-mode-card.selected{border-color:#3388ff;background:rgba(51,136,255,0.08);}
+.eff-mode-card input{position:absolute;opacity:0;pointer-events:none;}
+.eff-mode-kicker{font-size:10px;color:#2a2a3a;letter-spacing:3px;margin-bottom:8px;}
+.eff-mode-title{font-size:15px;color:#d8deef;font-weight:700;letter-spacing:2px;margin-bottom:8px;}
+.eff-mode-desc{font-size:12px;color:#555;line-height:1.7;min-height:68px;}
+.eff-mode-meta{margin-top:12px;font-size:11px;letter-spacing:2px;color:#7a879f;}
+
 .prob-table{width:100%;border-collapse:collapse;}
 .prob-table th{font-size:11px;color:#333;letter-spacing:3px;padding:10px 16px;text-align:left;font-weight:400;}
 .prob-row{border-top:1px solid #0f0f1c;}
@@ -345,7 +368,51 @@ option{background:#0a0a14;}
           </div>
         </div>
         <div class="tab-content" id="tab-effect">
-          <div class="wip-block">🚧　演出タブは現在作成中です　🚧</div>
+          <div class="eff-section-label">演出名の変更</div>
+          <div class="eff-name-grid">
+            <div class="eff-name-card">
+              <div class="eff-name-level">レベル1（弱）— 白波紋</div>
+              <input class="eff-name-input" id="eff-name-hazure" placeholder="外れ">
+              <div class="eff-name-preview">デフォルト: 外れ</div>
+            </div>
+            <div class="eff-name-card">
+              <div class="eff-name-level">レベル2（中）— 赤青波紋 + 縞模様</div>
+              <input class="eff-name-input" id="eff-name-futsuu" placeholder="普通">
+              <div class="eff-name-preview">デフォルト: 普通</div>
+            </div>
+            <div class="eff-name-card">
+              <div class="eff-name-level">レベル3（強）— スパーク + WARNING</div>
+              <input class="eff-name-input" id="eff-name-atari" placeholder="あたり">
+              <div class="eff-name-preview">デフォルト: あたり</div>
+            </div>
+          </div>
+          <div class="eff-section-label">演出パターン選択</div>
+          <div class="eff-mode-grid">
+            <label class="eff-mode-card" id="eff-mode-card-1">
+              <input type="radio" name="effect-mode" value="1">
+              <div class="eff-mode-kicker">PATTERN 01</div>
+              <div class="eff-mode-title">白い波紋</div>
+              <div class="eff-mode-desc">全プレート吸着後に白い波紋を展開。結果表示は通常UIのまま、文字の見やすさを優先します。</div>
+              <div class="eff-mode-meta">通常結果表示</div>
+            </label>
+            <label class="eff-mode-card" id="eff-mode-card-2">
+              <input type="radio" name="effect-mode" value="2">
+              <div class="eff-mode-kicker">PATTERN 02</div>
+              <div class="eff-mode-title">赤青波紋 + 縞縁</div>
+              <div class="eff-mode-desc">赤と青の波紋を重ね、結果パネルの縁に黄色と黒の縞模様を流します。本文の可読性は維持します。</div>
+              <div class="eff-mode-meta">警戒縁装飾</div>
+            </label>
+            <label class="eff-mode-card" id="eff-mode-card-3">
+              <input type="radio" name="effect-mode" value="3">
+              <div class="eff-mode-kicker">PATTERN 03</div>
+              <div class="eff-mode-title">1秒スパーク + WARNING</div>
+              <div class="eff-mode-desc">全プレート吸着後に約1秒スパーク。結果表示は警報風の `WARNING` 装飾で見せます。</div>
+              <div class="eff-mode-meta">警報表示</div>
+            </label>
+          </div>
+          <div style="margin-top:8px;">
+            <button class="action-btn primary" onclick="saveEffects()">演出設定を保存</button>
+          </div>
         </div>
       </div>
 
@@ -391,6 +458,10 @@ const DEFAULT = {
     hazure:{pct:30,priority:'strong'}
   },
   rehearsal:{enabled:false,sequence:Array(10).fill(null),index:0},
+  effects:{
+    names:{atari:'あたり',futsuu:'普通',hazure:'外れ'},
+    mode:1
+  },
   plateCount:4
 };
 
@@ -411,6 +482,7 @@ function openSettings(){
   renderPlateIndicators();
   selectPlate(0);
   loadProbUI();
+  loadEffectUI();
   loadRehearsalUI();
 }
 function closeSettings(){ document.getElementById('settings').classList.remove('open'); }
@@ -520,6 +592,45 @@ function showTab(id){
   document.querySelectorAll('.tab-content').forEach((c,i)=>c.classList.toggle('active',['tab-prob','tab-effect'][i]==='tab-'+id));
 }
 
+// ─── EFFECTS ───
+function loadEffectUI(){
+  if(!S.effects) S.effects=JSON.parse(JSON.stringify(DEFAULT.effects));
+  const names=S.effects.names||DEFAULT.effects.names;
+  const mode=Number(S.effects.mode)||1;
+  document.getElementById('eff-name-hazure').value=names.hazure||'外れ';
+  document.getElementById('eff-name-futsuu').value=names.futsuu||'普通';
+  document.getElementById('eff-name-atari').value=names.atari||'あたり';
+  document.querySelectorAll('input[name="effect-mode"]').forEach(input=>{
+    input.checked=Number(input.value)===mode;
+  });
+  updateEffectModeSelection();
+}
+
+function updateEffectModeSelection(){
+  document.querySelectorAll('.eff-mode-card').forEach(card=>card.classList.remove('selected'));
+  const selected=document.querySelector('input[name="effect-mode"]:checked');
+  if(selected){
+    const card=document.getElementById('eff-mode-card-'+selected.value);
+    if(card) card.classList.add('selected');
+  }
+}
+
+function saveEffects(){
+  if(!S.effects) S.effects={names:{},mode:1};
+  S.effects.names={
+    hazure:document.getElementById('eff-name-hazure').value.trim()||'外れ',
+    futsuu:document.getElementById('eff-name-futsuu').value.trim()||'普通',
+    atari:document.getElementById('eff-name-atari').value.trim()||'あたり'
+  };
+  const selected=document.querySelector('input[name="effect-mode"]:checked');
+  S.effects.mode=selected?Number(selected.value):1;
+  saveSettings(S);
+  updateEffectModeSelection();
+  loadRehearsalUI();
+  const btn=event.currentTarget;const orig=btn.textContent;btn.textContent='✓ 保存しました';
+  setTimeout(()=>btn.textContent=orig,1500);
+}
+
 // ─── REHEARSAL ───
 function loadRehearsalUI(){
   const r = S.rehearsal;
@@ -528,15 +639,16 @@ function loadRehearsalUI(){
   document.getElementById('rehearsal-idx').textContent = r.enabled?`現在 ${r.index+1}回目`:'';
   const grid = document.getElementById('rehearsal-grid');
   grid.innerHTML='';
+  const effNames = S.effects?.names || DEFAULT.effects.names;
   for(let i=0;i<10;i++){
     const slot = document.createElement('div'); slot.className='rehearsal-slot';
     const val = r.sequence[i]||'';
     slot.innerHTML=`<div class="slot-num">${i+1}回目</div>
       <select class="slot-select" id="slot-${i}">
         <option value="">未設定</option>
-        <option value="atari" ${val==='atari'?'selected':''}>あたり</option>
-        <option value="futsuu" ${val==='futsuu'?'selected':''}>普通</option>
-        <option value="hazure" ${val==='hazure'?'selected':''}>外れ</option>
+        <option value="atari" ${val==='atari'?'selected':''}>${effNames.atari}</option>
+        <option value="futsuu" ${val==='futsuu'?'selected':''}>${effNames.futsuu}</option>
+        <option value="hazure" ${val==='hazure'?'selected':''}>${effNames.hazure}</option>
       </select>`;
     grid.appendChild(slot);
   }
@@ -561,6 +673,10 @@ function clearRehearsal(){
   S.rehearsal.sequence=Array(10).fill(null); S.rehearsal.index=0;
   saveSettings(S); loadRehearsalUI();
 }
+
+document.addEventListener('change',e=>{
+  if(e.target && e.target.name==='effect-mode') updateEffectModeSelection();
+});
 </script>
 <script>
 (function(){
