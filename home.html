@@ -113,6 +113,23 @@ body::before{content:'';position:fixed;inset:0;
   border:1px dashed #1e1e30;border-radius:8px;margin-top:8px;}
 .share-notice em{color:#3388ff;font-style:normal;font-weight:700;}
 .pill-shared{font-size:9px;color:#3388ff;letter-spacing:1px;margin-top:2px;}
+.pill-timer{font-size:9px;color:#ffaa44;letter-spacing:1px;margin-top:2px;}
+/* ─── TIMER MODE ─── */
+.timer-mode-row{display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:10px 14px;background:#080812;border:1px solid #1a1a28;border-radius:6px;}
+.timer-mode-cb{width:16px;height:16px;cursor:pointer;accent-color:#ffaa44;}
+.timer-mode-lbl{font-size:13px;color:#aaa;letter-spacing:2px;cursor:pointer;}
+.timer-area{margin-top:4px;}
+.timer-entry-list{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;min-height:4px;}
+.timer-entry{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0a0a16;border:1px solid #1a1a28;border-radius:5px;flex-wrap:wrap;}
+.timer-entry-num{font-size:10px;color:#333;letter-spacing:2px;min-width:22px;}
+.timer-input{width:72px;padding:6px 10px;background:#08080f;border:1px solid #1e1e30;border-radius:4px;color:#e0e0e0;font-size:15px;font-weight:700;text-align:center;outline:none;}
+.timer-input:focus{border-color:#ffaa44;}
+.timer-unit{font-size:12px;color:#555;letter-spacing:1px;white-space:nowrap;}
+.timer-sep{color:#1e1e30;font-size:16px;margin:0 4px;}
+.timer-delete{margin-left:auto;padding:5px 10px;border:1px solid #1e1e30;background:transparent;color:#444;font-size:11px;cursor:pointer;border-radius:3px;transition:all .2s;letter-spacing:1px;}
+.timer-delete:hover{border-color:#ff334455;color:#ff6677;}
+.timer-add-btn{width:100%;padding:10px;border:1px dashed #2a2a3a;background:transparent;color:#555;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:4px;transition:all .2s;margin-top:4px;}
+.timer-add-btn:hover{border-color:#ffaa4466;color:#ffcc66;}
 .genre-label{font-size:13px;color:#555;letter-spacing:3px;min-width:80px;}
 .genre-input{
   flex:1;padding:10px 16px;background:#08080f;border:1px solid #1e1e30;border-radius:4px;
@@ -304,6 +321,14 @@ option{background:#0a0a14;}
             <select class="share-select" id="share-select" onchange="saveShare()"></select>
           </div>
           <div id="share-notice" class="share-notice" style="display:none"></div>
+          <div id="timer-mode-row" class="timer-mode-row" style="display:none">
+            <input type="checkbox" class="timer-mode-cb" id="timer-mode-cb" onchange="toggleTimerMode()">
+            <label for="timer-mode-cb" class="timer-mode-lbl">時間固定モード</label>
+          </div>
+          <div id="timer-area" class="timer-area" style="display:none">
+            <div class="timer-entry-list" id="timer-entry-list"></div>
+            <button class="timer-add-btn" onclick="addTimerEntry()">＋ 時間を追加</button>
+          </div>
           <div id="import-area">
           <div class="import-grid">
             <div class="import-box">
@@ -517,22 +542,30 @@ function renderPlateIndicators(){
   const wrap = document.getElementById('plate-indicators');
   wrap.innerHTML='';
   S.plates.forEach((pl,i)=>{
-    const total = pl.atari.length + pl.futsuu.length + pl.hazure.length;
     const d = document.createElement('div');
     d.className='plate-pill'+(i===currentPlate?' active':'');
     d.onclick=()=>selectPlate(i);
     const shared=pl.shareWith!=null;
-    const srcPl=shared?S.plates[pl.shareWith]:pl;
-    d.innerHTML=`<div class="pill-label">プレート ${i+1}</div>
-      <div class="pill-genre">${pl.genre||'未設定'}</div>
-      ${shared?`<div class="pill-shared">↔ プレート${pl.shareWith+1}と共有</div>`:''}
-      <div class="pill-counts">
-        <span class="c-atari">あ:${srcPl.atari.length}</span>
-        <span style="color:#2a2a3a"> / </span>
-        <span class="c-futsuu">普:${srcPl.futsuu.length}</span>
-        <span style="color:#2a2a3a"> / </span>
-        <span class="c-hazure">外:${srcPl.hazure.length}</span>
-      </div>`;
+    const timerMode=!!pl.timerMode&&!shared;
+    if(timerMode){
+      const entryCount=(pl.timerEntries||[]).length;
+      d.innerHTML=`<div class="pill-label">プレート ${i+1}</div>
+        <div class="pill-genre">${pl.genre||'未設定'}</div>
+        <div class="pill-timer">⏱ タイマー</div>
+        <div class="pill-counts"><span style="color:#ffaa44">${entryCount}パターン</span></div>`;
+    } else {
+      const srcPl=shared?S.plates[pl.shareWith]:pl;
+      d.innerHTML=`<div class="pill-label">プレート ${i+1}</div>
+        <div class="pill-genre">${pl.genre||'未設定'}</div>
+        ${shared?`<div class="pill-shared">↔ プレート${pl.shareWith+1}と共有</div>`:''}
+        <div class="pill-counts">
+          <span class="c-atari">あ:${(srcPl.atari||[]).length}</span>
+          <span style="color:#2a2a3a"> / </span>
+          <span class="c-futsuu">普:${(srcPl.futsuu||[]).length}</span>
+          <span style="color:#2a2a3a"> / </span>
+          <span class="c-hazure">外:${(srcPl.hazure||[]).length}</span>
+        </div>`;
+    }
     wrap.appendChild(d);
   });
 }
@@ -549,9 +582,18 @@ function selectPlate(i){
     if(j===i) return;
     sel.innerHTML+=`<option value="${j}"${pl.shareWith===j?' selected':''}>プレート${j+1}（${p.genre||'未設定'}）と共有</option>`;
   });
-  // 共有中なら項目編集を隠す
   const isShared=pl.shareWith!=null;
-  document.getElementById('import-area').style.display=isShared?'none':'';
+  const timerMode=!!pl.timerMode&&!isShared;
+  // タイマーモードUI（共有中は非表示）
+  const tmRow=document.getElementById('timer-mode-row');
+  if(tmRow) tmRow.style.display=isShared?'none':'';
+  const tmCb=document.getElementById('timer-mode-cb');
+  if(tmCb) tmCb.checked=timerMode;
+  // エリア表示制御
+  document.getElementById('import-area').style.display=(isShared||timerMode)?'none':'';
+  const tmArea=document.getElementById('timer-area');
+  if(tmArea) tmArea.style.display=(!isShared&&timerMode)?'':'none';
+  // 共有通知
   const notice=document.getElementById('share-notice');
   if(isShared){
     const src=S.plates[pl.shareWith];
@@ -561,9 +603,12 @@ function selectPlate(i){
   }else{
     notice.style.display='none';
   }
+  // タイマーエントリー描画
+  if(!isShared&&timerMode){ renderTimerEntries(); return; }
+  // 通常インポート
   ['atari','futsuu','hazure'].forEach(type=>{
-    document.getElementById('count-'+type).textContent = pl[type].length+'件';
-    document.getElementById('ta-'+type).value = pl[type].join('\n');
+    document.getElementById('count-'+type).textContent = (pl[type]||[]).length+'件';
+    document.getElementById('ta-'+type).value = (pl[type]||[]).join('\n');
     updatePreview(type);
   });
 }
@@ -573,6 +618,56 @@ function saveShare(){
   S.plates[currentPlate].shareWith=val===''?null:Number(val);
   saveSettings(S);
   selectPlate(currentPlate);
+}
+
+function toggleTimerMode(){
+  const cb=document.getElementById('timer-mode-cb');
+  S.plates[currentPlate].timerMode=cb.checked;
+  if(cb.checked&&!S.plates[currentPlate].timerEntries){
+    S.plates[currentPlate].timerEntries=[];
+  }
+  saveSettings(S);selectPlate(currentPlate);
+}
+
+function renderTimerEntries(){
+  const entries=(S.plates[currentPlate].timerEntries||[]);
+  const list=document.getElementById('timer-entry-list');
+  if(!list) return;
+  list.innerHTML='';
+  entries.forEach((entry,idx)=>{
+    const el=document.createElement('div');
+    el.className='timer-entry';
+    el.innerHTML=`<span class="timer-entry-num">${idx+1}</span>
+      <span class="timer-unit">時間</span>
+      <input class="timer-input" type="number" min="1" max="3600" value="${entry.seconds}"
+        onchange="saveTimerField(${idx},'seconds',this.value)">
+      <span class="timer-unit">秒</span>
+      <span class="timer-sep">｜</span>
+      <span class="timer-unit">節目</span>
+      <input class="timer-input" type="number" min="1" max="3600" value="${entry.milestone}"
+        onchange="saveTimerField(${idx},'milestone',this.value)">
+      <span class="timer-unit">秒ごと</span>
+      <button class="timer-delete" onclick="removeTimerEntry(${idx})">削除</button>`;
+    list.appendChild(el);
+  });
+}
+
+function addTimerEntry(){
+  if(!S.plates[currentPlate].timerEntries) S.plates[currentPlate].timerEntries=[];
+  S.plates[currentPlate].timerEntries.push({seconds:60,milestone:20});
+  saveSettings(S);renderTimerEntries();renderPlateIndicators();
+}
+
+function removeTimerEntry(idx){
+  S.plates[currentPlate].timerEntries.splice(idx,1);
+  saveSettings(S);renderTimerEntries();renderPlateIndicators();
+}
+
+function saveTimerField(idx,field,value){
+  const v=Math.max(1,parseInt(value)||1);
+  if(!S.plates[currentPlate].timerEntries) S.plates[currentPlate].timerEntries=[];
+  S.plates[currentPlate].timerEntries[idx][field]=v;
+  saveSettings(S);
 }
 
 function saveGenre(){

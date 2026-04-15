@@ -252,6 +252,11 @@ canvas { position:absolute; inset:0; z-index:0; pointer-events:none; }
 #btn-spin { border-color:#ff3344; color:#ff6677; padding:13px 56px; font-size:17px; font-weight:700; letter-spacing:5px; }
 #btn-spin:hover { box-shadow:0 0 20px rgba(255,50,68,.3); border-color:#ff6677; }
 #btn-spin:disabled { border-color:#1a1a28; color:#2a2a3a; box-shadow:none; cursor:not-allowed; }
+#btn-timer { letter-spacing:2px; font-size:13px; opacity:.35; cursor:not-allowed !important; }
+#btn-timer.ready { opacity:1; border-color:#ffaa44; color:#ffcc66; cursor:pointer !important; animation:timerPulse .9s ease-in-out infinite; }
+#btn-timer.running { opacity:1; border-color:#ff3344; color:#ff6677; cursor:pointer !important; animation:timerBlink .6s ease-in-out infinite; }
+@keyframes timerPulse { 0%,100%{box-shadow:0 0 10px rgba(255,170,60,.2)}50%{box-shadow:0 0 26px rgba(255,170,60,.6)} }
+@keyframes timerBlink { 0%,100%{opacity:1}50%{opacity:.42} }
 .lbl { font-size:13px; color:#333; letter-spacing:3px; }
 .cnt { width:52px; height:38px; background:#0a0a14; border:1px solid #1e1e2a; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:700; border-radius:3px; }
 </style>
@@ -279,6 +284,7 @@ canvas { position:absolute; inset:0; z-index:0; pointer-events:none; }
   <div class="cnt" id="cnt">4</div>
   <button class="btn" id="btn-p">＋</button>
   <button class="btn" id="btn-spin">SPIN</button>
+  <button class="btn" id="btn-timer" disabled>TIMER START</button>
 </div>
 <script>
 /* ══════════════════════════════════════════════════
@@ -337,6 +343,7 @@ let n=4,busy=false,plateData=[],shockwaves=[],pShocks=[],sparks=[],sparkIv=null,
 let showingResult=false,resetting=false;
 let coreAngle=0,coreRotSpeed=0;
 let snapOnFullRotation=false,snapCallback=null,snapTargetAngle=0;
+let timerActive=false,timerStartTime=0,timerDuration=0,timerMilestone=0,timerLastMilestoneCount=-1;
 
 /* ══════════════════════════════════════════════════
    AUDIO (プリロード + 再生)
@@ -404,10 +411,10 @@ function pickRandomItem(plate,forceType,excludeSet){
 function getTypeName(type,settings){
   return settings.effects?.names?.[type]||DEFAULT.effects.names[type];
 }
-/* 多数決で演出レベルを決定（優先: あたり>普通>ハズレ） */
+/* 多数決で演出レベルを決定（優先: あたり>普通>ハズレ、タイマープレートは除外） */
 function determineEffectByMajority(){
   const c={atari:0,futsuu:0,hazure:0};
-  plateData.forEach(pd=>{ if(pd.lockedType) c[pd.lockedType]++; });
+  plateData.forEach(pd=>{ if(pd.lockedType&&!pd.isTimer) c[pd.lockedType]++; });
   // あたりが最多 or 同数なら最優先
   if(c.atari>=c.futsuu && c.atari>=c.hazure) return {level:3};
   // 普通が最多 or ハズレと同数なら次に優先
@@ -425,6 +432,7 @@ function build(){
   const settings=loadSettings();
   getAngles(n).forEach((ang,i)=>{
     const rawCfg=settings.plates[i]||DEFAULT.plates[i%6];
+    const isTimer=!!(rawCfg.timerMode&&(rawCfg.timerEntries||[]).length>0);
     // 共有先が設定されていれば、共有元のアイテムプールを使う
     const srcIdx=rawCfg.shareWith;
     const itemSrc=(srcIdx!=null && settings.plates[srcIdx])?settings.plates[srcIdx]:rawCfg;
@@ -441,7 +449,7 @@ function build(){
       `<div class="p-text">${allItems.length?allItems[0].text:'—'}</div>`+
       `<div class="p-type">—</div><div class="p-flash"></div>`;
     wrap.appendChild(box);document.body.appendChild(wrap);
-    plateData.push({wrap,box,ox,oy,ix,iy,angle:ang,cfg,allItems,isN,cycleIdx:0,state:'idle',locked:false,lockedType:null,assignedItem:null});
+    plateData.push({wrap,box,ox,oy,ix,iy,angle:ang,cfg,allItems,isN,cycleIdx:0,state:'idle',locked:false,lockedType:null,assignedItem:null,isTimer,timerEntry:null,timerEntries:rawCfg.timerEntries||[]});
   });
   coreGlow=0;
   document.getElementById('rehearsal-badge').className=loadSettings().rehearsal?.enabled?'active':'';
@@ -490,12 +498,33 @@ function drawFrame(){
   });
 
   // ── MAGNET CORE (with rotation) ──
-  coreAngle+=coreRotSpeed;
-  // N/Sが元の位置（2πの倍数）に達したら → スナップ発動
-  if(snapOnFullRotation && coreAngle>=snapTargetAngle){
-    snapOnFullRotation=false;
-    coreAngle=0;coreRotSpeed=0; // 正位置でピタッと停止
-    if(snapCallback){snapCallback();snapCallback=null;}
+  if(timerActive){
+    // 時間ベース回転: 総秒数=1回転
+    const elapsed=(performance.now()-timerStartTime)/1000;
+    coreAngle=(elapsed/timerDuration)*Math.PI*2;
+    // 節目チェック
+    const mc=Math.floor(elapsed/timerMilestone);
+    if(mc>timerLastMilestoneCount&&timerLastMilestoneCount>=0){
+      timerLastMilestoneCount=mc;
+      if(mc>0) fireMilestoneSparks();
+    }
+    // 終了チェック
+    if(elapsed>=timerDuration){
+      timerActive=false;coreAngle=0;coreRotSpeed=0;
+      stopSE('rotation',100);playSE('snap',1);
+      const btn=document.getElementById('btn-timer');
+      btn.textContent='TIMER START';btn.classList.remove('running');btn.disabled=true;
+      busy=false;showingResult=true;
+      document.getElementById('btn-spin').disabled=false;
+    }
+  } else {
+    coreAngle+=coreRotSpeed;
+    // N/Sが元の位置（2πの倍数）に達したら → スナップ発動
+    if(snapOnFullRotation&&coreAngle>=snapTargetAngle){
+      snapOnFullRotation=false;
+      coreAngle=0;coreRotSpeed=0;
+      if(snapCallback){snapCallback();snapCallback=null;}
+    }
   }
 
   const glow=coreGlow+.15*Math.sin(globalT*.03);
@@ -542,7 +571,7 @@ function drawFrame(){
    CYCLE
    ══════════════════════════════════════════════════ */
 let cycleIv;
-function startCycle(ms){clearInterval(cycleIv);cycleIv=setInterval(()=>{plateData.forEach(pd=>{if(pd.state==='idle'&&pd.allItems.length>0){pd.cycleIdx=(pd.cycleIdx+1)%pd.allItems.length;pd.box.querySelector('.p-text').textContent=pd.allItems[pd.cycleIdx].text;}});},ms||90);}
+function startCycle(ms){clearInterval(cycleIv);cycleIv=setInterval(()=>{plateData.forEach(pd=>{if(pd.state==='idle'&&!pd.isTimer&&pd.allItems.length>0){pd.cycleIdx=(pd.cycleIdx+1)%pd.allItems.length;pd.box.querySelector('.p-text').textContent=pd.allItems[pd.cycleIdx].text;}});},ms||90);}
 function stopCycle(){clearInterval(cycleIv);}
 
 /* ══════════════════════════════════════════════════
@@ -619,6 +648,9 @@ function resetToOrbit(){
   coreGlow=0;
   coreAngle=0;coreRotSpeed=0;
   snapOnFullRotation=false;snapCallback=null;snapTargetAngle=0;
+  timerActive=false;
+  const tb=document.getElementById('btn-timer');
+  if(tb){tb.disabled=true;tb.classList.remove('ready','running');tb.textContent='TIMER START';}
   // SE全停止
   Object.keys(SE).forEach(k=>stopSE(k));
   document.getElementById('screen-vignette').className='';
@@ -668,6 +700,19 @@ function fire(){
   coreGlow=0;pShocks=[];shockwaves=[];sparks=[];
   if(sparkIv){clearInterval(sparkIv);sparkIv=null;}
 
+  // ── タイマープレートを即時確定（シャッフル前）──
+  plateData.forEach(pd=>{
+    if(!pd.isTimer||!pd.timerEntries.length) return;
+    const entry=pd.timerEntries[Math.floor(Math.random()*pd.timerEntries.length)];
+    pd.timerEntry=entry;
+    pd.state='revealed';
+    pd.lockedType='futsuu';
+    pd.assignedItem={text:`${entry.seconds}秒`,type:'futsuu'};
+    pd.box.querySelector('.p-text').textContent=`${entry.seconds}秒`;
+    pd.box.querySelector('.p-type').textContent='タイマー';
+    pd.box.classList.add('locked','futsuu');
+  });
+
   // ── SE: スタート音 + 回転音ループ ──
   playSE('start');
   setTimeout(()=>playSE('rotation',.6),200);
@@ -690,6 +735,16 @@ function fire(){
   // ── ① 時計回りに1つずつ結果確定（上→右→下→左）──
   plateData.forEach((pd,i)=>{
     setTimeout(()=>{
+      // タイマープレートはフラッシュのみ（既に確定済み）
+      if(pd.isTimer){
+        const fl=pd.box.querySelector('.p-flash');
+        fl.style.transition='none';fl.style.opacity='.7';
+        setTimeout(()=>{fl.style.transition='opacity .25s';fl.style.opacity='0';},60);
+        pShocks.push({x:pd.ox,y:pd.oy,r:6,a:.8,col:'255,170,60'},{x:pd.ox,y:pd.oy,r:18,a:.5,col:'255,170,60'});
+        coreGlow=Math.min(1,.3+i*.2);
+        playSE(i===n-1?'last':'reveal',.8);
+        return;
+      }
       const excludeSet=getExcludeSet(i);
       const item=pickRandomItem(pd.cfg,forceType,excludeSet);
       excludeSet.add(item.text);
@@ -746,13 +801,20 @@ function fire(){
         {r:50,a:.7,col:'180,200,255'},{r:80,a:.5,col:'140,180,255'},
         {r:120,a:.35,col:'100,160,255'},{r:180,a:.2,col:'80,140,255'}
       );
-      // ── ③ テロップ表示（多数決で演出レベル決定 + SE）──
+      // ── ③ タイマーモードならTIMER STARTを有効化、そうでなければテロップ表示 ──
       setTimeout(()=>{
-        const eff=determineEffectByMajority();
-        // SE: 演出レベルに応じた結果音
-        if(eff.level===3) playSE('warning',.85);
-        else if(eff.level===2) playSE('caution',.85);
-        playEffect(eff,settings);
+        const hasTimer=plateData.some(pd=>pd.isTimer);
+        if(hasTimer){
+          const btn=document.getElementById('btn-timer');
+          btn.disabled=false;btn.classList.add('ready');
+          busy=false;showingResult=true;
+          document.getElementById('btn-spin').disabled=false;
+        } else {
+          const eff=determineEffectByMajority();
+          if(eff.level===3) playSE('warning',.85);
+          else if(eff.level===2) playSE('caution',.85);
+          playEffect(eff,settings);
+        }
       },TIMING.POST_SNAP);
     };
   },ALL_REVEALED+TIMING.POST_REVEAL);
@@ -850,6 +912,62 @@ function showResult(eff,settings){
 }
 
 /* ══════════════════════════════════════════════════
+   TIMER
+   ══════════════════════════════════════════════════ */
+function startTimer(){
+  if(timerActive) return;
+  const pd=plateData.find(p=>p.isTimer&&p.timerEntry);
+  if(!pd) return;
+  timerDuration=pd.timerEntry.seconds;
+  timerMilestone=pd.timerEntry.milestone;
+  timerLastMilestoneCount=0;
+  timerStartTime=performance.now();
+  timerActive=true;
+  playSE('rotation',.6);
+  const btn=document.getElementById('btn-timer');
+  btn.textContent='STOP / CANCEL';btn.classList.remove('ready');btn.classList.add('running');
+  document.getElementById('btn-spin').disabled=true;
+}
+
+function stopTimer(){
+  if(!timerActive) return;
+  timerActive=false;
+  coreAngle=0;coreRotSpeed=0;
+  stopSE('rotation',300);
+  const btn=document.getElementById('btn-timer');
+  btn.textContent='TIMER START';btn.classList.remove('running');btn.classList.add('ready');
+  document.getElementById('btn-spin').disabled=false;
+}
+
+function fireMilestoneSparks(){
+  // N極・S極の位置を回転角度から算出
+  const nX=CX+Math.sin(coreAngle)*CORE_R*.85;
+  const nY=CY-Math.cos(coreAngle)*CORE_R*.85;
+  const sX=CX-Math.sin(coreAngle)*CORE_R*.85;
+  const sY=CY+Math.cos(coreAngle)*CORE_R*.85;
+  [[nX,nY,'255,130,100'],[sX,sY,'100,190,255']].forEach(([px,py,col])=>{
+    for(let i=0;i<22;i++){
+      const ang=Math.random()*Math.PI*2,spd=5+Math.random()*18;
+      sparks.push({x:px+(Math.random()-.5)*30,y:py+(Math.random()-.5)*30,
+        vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd-1,
+        life:1,decay:.011+Math.random()*.016,size:2.5+Math.random()*5,col});
+    }
+  });
+  shockwaves.push(
+    {r:14,a:.72,col:'255,160,80'},{r:38,a:.5,col:'255,200,80'},{r:78,a:.3,col:'255,180,60'}
+  );
+  flashScreen('rgba(255,200,100,.13)');
+  playSE('sparks',.65);
+}
+
+function flashScreen(bg){
+  const f=document.createElement('div');
+  f.style.cssText=`position:fixed;inset:0;background:${bg};pointer-events:none;z-index:57;transition:opacity .75s ease-out;`;
+  document.body.appendChild(f);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{f.style.opacity='0';setTimeout(()=>f.remove(),900);}));
+}
+
+/* ══════════════════════════════════════════════════
    CONTROLS
    ══════════════════════════════════════════════════ */
 function updateCount(newN){
@@ -862,6 +980,7 @@ function updateCount(newN){
 document.getElementById('btn-m').onclick=()=>{if(n>1&&!busy)updateCount(n-1);};
 document.getElementById('btn-p').onclick=()=>{if(n<6&&!busy)updateCount(n+1);};
 document.getElementById('btn-spin').onclick=fire;
+document.getElementById('btn-timer').onclick=()=>{if(timerActive)stopTimer();else startTimer();};
 
 (function(){const s=loadSettings();n=Math.min(Math.max(s.plateCount||4,1),6);document.getElementById('cnt').textContent=n;})();
 build();drawFrame();
