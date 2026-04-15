@@ -704,13 +704,14 @@ function fire(){
   plateData.forEach(pd=>{
     if(!pd.isTimer||!pd.timerEntries.length) return;
     const entry=pd.timerEntries[Math.floor(Math.random()*pd.timerEntries.length)];
+    const tType=entry.type||'futsuu';
     pd.timerEntry=entry;
     pd.state='revealed';
-    pd.lockedType='futsuu';
-    pd.assignedItem={text:`${entry.seconds}秒`,type:'futsuu'};
+    pd.lockedType=tType;
+    pd.assignedItem={text:`${entry.seconds}秒`,type:tType};
     pd.box.querySelector('.p-text').textContent=`${entry.seconds}秒`;
-    pd.box.querySelector('.p-type').textContent='タイマー';
-    pd.box.classList.add('locked','futsuu');
+    pd.box.querySelector('.p-type').textContent=getTypeName(tType,settings);
+    pd.box.classList.add('locked',tType);
   });
 
   // ── SE: スタート音 + 回転音ループ ──

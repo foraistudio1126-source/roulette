@@ -126,6 +126,11 @@ body::before{content:'';position:fixed;inset:0;
 .timer-input:focus{border-color:#ffaa44;}
 .timer-unit{font-size:12px;color:#555;letter-spacing:1px;white-space:nowrap;}
 .timer-sep{color:#1e1e30;font-size:16px;margin:0 4px;}
+.timer-type-select{padding:5px 8px;background:#08080f;border:1px solid #1e1e30;border-radius:4px;color:#e0e0e0;font-size:12px;letter-spacing:1px;outline:none;cursor:pointer;}
+.timer-type-select:focus{border-color:#ffaa44;}
+.timer-type-select.t-atari{color:#ff6677;border-color:#ff334444;}
+.timer-type-select.t-futsuu{color:#aaa;border-color:#33333366;}
+.timer-type-select.t-hazure{color:#66aaff;border-color:#3388ff33;}
 .timer-delete{margin-left:auto;padding:5px 10px;border:1px solid #1e1e30;background:transparent;color:#444;font-size:11px;cursor:pointer;border-radius:3px;transition:all .2s;letter-spacing:1px;}
 .timer-delete:hover{border-color:#ff334455;color:#ff6677;}
 .timer-add-btn{width:100%;padding:10px;border:1px dashed #2a2a3a;background:transparent;color:#555;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:4px;transition:all .2s;margin-top:4px;}
@@ -637,6 +642,7 @@ function renderTimerEntries(){
   entries.forEach((entry,idx)=>{
     const el=document.createElement('div');
     el.className='timer-entry';
+    const t=entry.type||'futsuu';
     el.innerHTML=`<span class="timer-entry-num">${idx+1}</span>
       <span class="timer-unit">時間</span>
       <input class="timer-input" type="number" min="1" max="3600" value="${entry.seconds}"
@@ -647,6 +653,12 @@ function renderTimerEntries(){
       <input class="timer-input" type="number" min="1" max="3600" value="${entry.milestone}"
         onchange="saveTimerField(${idx},'milestone',this.value)">
       <span class="timer-unit">秒ごと</span>
+      <span class="timer-sep">｜</span>
+      <select class="timer-type-select t-${t}" onchange="saveTimerType(${idx},this)">
+        <option value="atari"${t==='atari'?' selected':''}>あたり</option>
+        <option value="futsuu"${t==='futsuu'?' selected':''}>普通</option>
+        <option value="hazure"${t==='hazure'?' selected':''}>外れ</option>
+      </select>
       <button class="timer-delete" onclick="removeTimerEntry(${idx})">削除</button>`;
     list.appendChild(el);
   });
@@ -654,7 +666,7 @@ function renderTimerEntries(){
 
 function addTimerEntry(){
   if(!S.plates[currentPlate].timerEntries) S.plates[currentPlate].timerEntries=[];
-  S.plates[currentPlate].timerEntries.push({seconds:60,milestone:20});
+  S.plates[currentPlate].timerEntries.push({seconds:60,milestone:20,type:'futsuu'});
   saveSettings(S);renderTimerEntries();renderPlateIndicators();
 }
 
@@ -667,6 +679,13 @@ function saveTimerField(idx,field,value){
   const v=Math.max(1,parseInt(value)||1);
   if(!S.plates[currentPlate].timerEntries) S.plates[currentPlate].timerEntries=[];
   S.plates[currentPlate].timerEntries[idx][field]=v;
+  saveSettings(S);
+}
+
+function saveTimerType(idx,sel){
+  if(!S.plates[currentPlate].timerEntries) return;
+  S.plates[currentPlate].timerEntries[idx].type=sel.value;
+  sel.className='timer-type-select t-'+sel.value;
   saveSettings(S);
 }
 
