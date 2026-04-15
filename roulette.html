@@ -379,11 +379,26 @@ function pickFromPool(p,type){
   const all=getAllItems(p);if(all.length) return all[Math.floor(Math.random()*all.length)];
   return {text:p.genre||'?',type};
 }
-/* 単語をランダムに1つ選ぶ — タイプは単語に紐付いたものをそのまま使う */
-function pickRandomItem(plate,forceType){
-  if(forceType) return pickFromPool(plate,forceType);
-  const all=getAllItems(plate);
-  if(all.length===0) return {text:plate.genre||'?',type:'hazure'};
+/* 単語をランダムに1つ選ぶ — タイプは単語に紐付いたものをそのまま使う
+   excludeSet: 共有プレート間の重複防止用（使用済みテキストのSet） */
+function pickRandomItem(plate,forceType,excludeSet){
+  if(forceType){
+    const item=pickFromPool(plate,forceType);
+    if(excludeSet && excludeSet.has(item.text)){
+      // 除外対象 → 同タイプの別アイテムを探す
+      const pool=(plate[forceType]||[]).filter(t=>!excludeSet.has(t));
+      if(pool.length) return {text:pool[Math.floor(Math.random()*pool.length)],type:forceType};
+    }
+    return item;
+  }
+  let all=getAllItems(plate);
+  if(excludeSet) all=all.filter(it=>!excludeSet.has(it.text));
+  if(all.length===0){
+    // 除外なしでも空ならフォールバック
+    const fallback=getAllItems(plate);
+    if(fallback.length) return fallback[Math.floor(Math.random()*fallback.length)];
+    return {text:plate.genre||'?',type:'hazure'};
+  }
   return all[Math.floor(Math.random()*all.length)];
 }
 function getTypeName(type,settings){
@@ -409,7 +424,11 @@ function build(){
   plateData=[];
   const settings=loadSettings();
   getAngles(n).forEach((ang,i)=>{
-    const cfg=settings.plates[i]||DEFAULT.plates[i%6];
+    const rawCfg=settings.plates[i]||DEFAULT.plates[i%6];
+    // 共有先が設定されていれば、共有元のアイテムプールを使う
+    const srcIdx=rawCfg.shareWith;
+    const itemSrc=(srcIdx!=null && settings.plates[srcIdx])?settings.plates[srcIdx]:rawCfg;
+    const cfg={...rawCfg, atari:itemSrc.atari, futsuu:itemSrc.futsuu, hazure:itemSrc.hazure};
     const allItems=getAllItems(cfg);
     const ox=CX+Math.cos(ang)*PLATE_R,oy=CY+Math.sin(ang)*PLATE_R;
     const ir=getInnerR(ang);
@@ -658,10 +677,22 @@ function fire(){
   coreRotSpeed=.07;
   setTimeout(()=>{coreGlow=.4;shockwaves.push({r:8,a:.6,col:'150,180,255'},{r:22,a:.4,col:'150,180,255'});},300);
 
+  // ── 共有グループ別の使用済みアイテム追跡 ──
+  // key=共有元インデックス, value=Set of used texts
+  const usedByGroup={};
+  function getExcludeSet(pdIdx){
+    const rawCfg=settings.plates[pdIdx]||{};
+    const srcIdx=rawCfg.shareWith!=null?rawCfg.shareWith:pdIdx;
+    if(!usedByGroup[srcIdx]) usedByGroup[srcIdx]=new Set();
+    return usedByGroup[srcIdx];
+  }
+
   // ── ① 時計回りに1つずつ結果確定（上→右→下→左）──
   plateData.forEach((pd,i)=>{
     setTimeout(()=>{
-      const item=pickRandomItem(pd.cfg,forceType);
+      const excludeSet=getExcludeSet(i);
+      const item=pickRandomItem(pd.cfg,forceType,excludeSet);
+      excludeSet.add(item.text);
       pd.assignedItem=item;
       pd.lockedType=item.type;
       pd.targetType=item.type;

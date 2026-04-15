@@ -101,7 +101,18 @@ body::before{content:'';position:fixed;inset:0;
 .pill-counts .c-hazure{color:#3388ff;}
 
 #plate-editor{background:#0d0d1c;border:1px solid #1a1a28;border-radius:8px;padding:28px;}
-.genre-row{display:flex;align-items:center;gap:16px;margin-bottom:28px;}
+.genre-row{display:flex;align-items:center;gap:16px;margin-bottom:20px;}
+.share-row{display:flex;align-items:center;gap:16px;margin-bottom:28px;}
+.share-label{font-size:13px;color:#555;letter-spacing:3px;min-width:80px;}
+.share-select{
+  padding:8px 14px;background:#08080f;border:1px solid #1e1e30;border-radius:4px;
+  color:#e0e0e0;font-size:14px;letter-spacing:1px;outline:none;cursor:pointer;}
+.share-select:focus{border-color:#3388ff;}
+.share-notice{
+  padding:24px;text-align:center;color:#555;font-size:14px;letter-spacing:2px;
+  border:1px dashed #1e1e30;border-radius:8px;margin-top:8px;}
+.share-notice em{color:#3388ff;font-style:normal;font-weight:700;}
+.pill-shared{font-size:9px;color:#3388ff;letter-spacing:1px;margin-top:2px;}
 .genre-label{font-size:13px;color:#555;letter-spacing:3px;min-width:80px;}
 .genre-input{
   flex:1;padding:10px 16px;background:#08080f;border:1px solid #1e1e30;border-radius:4px;
@@ -288,6 +299,12 @@ option{background:#0a0a14;}
             <input class="genre-input" id="genre-input" placeholder="例：声のトーン" maxlength="20">
             <button class="import-btn" style="width:100px;margin:0" onclick="saveGenre()">保存</button>
           </div>
+          <div class="share-row">
+            <div class="share-label">内容共有</div>
+            <select class="share-select" id="share-select" onchange="saveShare()"></select>
+          </div>
+          <div id="share-notice" class="share-notice" style="display:none"></div>
+          <div id="import-area">
           <div class="import-grid">
             <div class="import-box">
               <div class="import-header">
@@ -317,6 +334,7 @@ option{background:#0a0a14;}
               <div class="import-items-preview" id="preview-hazure"></div>
             </div>
           </div>
+          </div><!-- /import-area -->
         </div>
       </div>
 
@@ -503,14 +521,17 @@ function renderPlateIndicators(){
     const d = document.createElement('div');
     d.className='plate-pill'+(i===currentPlate?' active':'');
     d.onclick=()=>selectPlate(i);
+    const shared=pl.shareWith!=null;
+    const srcPl=shared?S.plates[pl.shareWith]:pl;
     d.innerHTML=`<div class="pill-label">プレート ${i+1}</div>
       <div class="pill-genre">${pl.genre||'未設定'}</div>
+      ${shared?`<div class="pill-shared">↔ プレート${pl.shareWith+1}と共有</div>`:''}
       <div class="pill-counts">
-        <span class="c-atari">あ:${pl.atari.length}</span>
+        <span class="c-atari">あ:${srcPl.atari.length}</span>
         <span style="color:#2a2a3a"> / </span>
-        <span class="c-futsuu">普:${pl.futsuu.length}</span>
+        <span class="c-futsuu">普:${srcPl.futsuu.length}</span>
         <span style="color:#2a2a3a"> / </span>
-        <span class="c-hazure">外:${pl.hazure.length}</span>
+        <span class="c-hazure">外:${srcPl.hazure.length}</span>
       </div>`;
     wrap.appendChild(d);
   });
@@ -521,11 +542,37 @@ function selectPlate(i){
   renderPlateIndicators();
   const pl = S.plates[i];
   document.getElementById('genre-input').value = pl.genre;
+  // 共有ドロップダウン構築
+  const sel=document.getElementById('share-select');
+  sel.innerHTML='<option value="">共有しない（独立）</option>';
+  S.plates.forEach((p,j)=>{
+    if(j===i) return;
+    sel.innerHTML+=`<option value="${j}"${pl.shareWith===j?' selected':''}>プレート${j+1}（${p.genre||'未設定'}）と共有</option>`;
+  });
+  // 共有中なら項目編集を隠す
+  const isShared=pl.shareWith!=null;
+  document.getElementById('import-area').style.display=isShared?'none':'';
+  const notice=document.getElementById('share-notice');
+  if(isShared){
+    const src=S.plates[pl.shareWith];
+    const total=(src.atari||[]).length+(src.futsuu||[]).length+(src.hazure||[]).length;
+    notice.style.display='';
+    notice.innerHTML=`<em>プレート${pl.shareWith+1}（${src.genre||'未設定'}）</em> のアイテム（${total}件）を共有中`;
+  }else{
+    notice.style.display='none';
+  }
   ['atari','futsuu','hazure'].forEach(type=>{
     document.getElementById('count-'+type).textContent = pl[type].length+'件';
     document.getElementById('ta-'+type).value = pl[type].join('\n');
     updatePreview(type);
   });
+}
+
+function saveShare(){
+  const val=document.getElementById('share-select').value;
+  S.plates[currentPlate].shareWith=val===''?null:Number(val);
+  saveSettings(S);
+  selectPlate(currentPlate);
 }
 
 function saveGenre(){
