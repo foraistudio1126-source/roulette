@@ -411,10 +411,10 @@ function pickRandomItem(plate,forceType,excludeSet){
 function getTypeName(type,settings){
   return settings.effects?.names?.[type]||DEFAULT.effects.names[type];
 }
-/* 多数決で演出レベルを決定（優先: あたり>普通>ハズレ、タイマープレートは除外） */
+/* 多数決で演出レベルを決定（優先: あたり>普通>ハズレ） */
 function determineEffectByMajority(){
   const c={atari:0,futsuu:0,hazure:0};
-  plateData.forEach(pd=>{ if(pd.lockedType&&!pd.isTimer) c[pd.lockedType]++; });
+  plateData.forEach(pd=>{ if(pd.lockedType) c[pd.lockedType]++; });
   // あたりが最多 or 同数なら最優先
   if(c.atari>=c.futsuu && c.atari>=c.hazure) return {level:3};
   // 普通が最多 or ハズレと同数なら次に優先
@@ -437,7 +437,10 @@ function build(){
     const srcIdx=rawCfg.shareWith;
     const itemSrc=(srcIdx!=null && settings.plates[srcIdx])?settings.plates[srcIdx]:rawCfg;
     const cfg={...rawCfg, atari:itemSrc.atari, futsuu:itemSrc.futsuu, hazure:itemSrc.hazure};
-    const allItems=getAllItems(cfg);
+    // タイマープレートはtimerEntriesからアイテムリストを生成
+    const allItems=isTimer
+      ? (rawCfg.timerEntries||[]).map(e=>({text:`${e.seconds}秒`,type:e.type||'futsuu'}))
+      : getAllItems(cfg);
     const ox=CX+Math.cos(ang)*PLATE_R,oy=CY+Math.sin(ang)*PLATE_R;
     const ir=getInnerR(ang);
     const ix=CX+Math.cos(ang)*ir,iy=CY+Math.sin(ang)*ir;
@@ -571,7 +574,7 @@ function drawFrame(){
    CYCLE
    ══════════════════════════════════════════════════ */
 let cycleIv;
-function startCycle(ms){clearInterval(cycleIv);cycleIv=setInterval(()=>{plateData.forEach(pd=>{if(pd.state==='idle'&&!pd.isTimer&&pd.allItems.length>0){pd.cycleIdx=(pd.cycleIdx+1)%pd.allItems.length;pd.box.querySelector('.p-text').textContent=pd.allItems[pd.cycleIdx].text;}});},ms||90);}
+function startCycle(ms){clearInterval(cycleIv);cycleIv=setInterval(()=>{plateData.forEach(pd=>{if(pd.state==='idle'&&pd.allItems.length>0){pd.cycleIdx=(pd.cycleIdx+1)%pd.allItems.length;pd.box.querySelector('.p-text').textContent=pd.allItems[pd.cycleIdx].text;}});},ms||90);}
 function stopCycle(){clearInterval(cycleIv);}
 
 /* ══════════════════════════════════════════════════
@@ -700,20 +703,6 @@ function fire(){
   coreGlow=0;pShocks=[];shockwaves=[];sparks=[];
   if(sparkIv){clearInterval(sparkIv);sparkIv=null;}
 
-  // ── タイマープレートを即時確定（シャッフル前）──
-  plateData.forEach(pd=>{
-    if(!pd.isTimer||!pd.timerEntries.length) return;
-    const entry=pd.timerEntries[Math.floor(Math.random()*pd.timerEntries.length)];
-    const tType=entry.type||'futsuu';
-    pd.timerEntry=entry;
-    pd.state='revealed';
-    pd.lockedType=tType;
-    pd.assignedItem={text:`${entry.seconds}秒`,type:tType};
-    pd.box.querySelector('.p-text').textContent=`${entry.seconds}秒`;
-    pd.box.querySelector('.p-type').textContent=getTypeName(tType,settings);
-    pd.box.classList.add('locked',tType);
-  });
-
   // ── SE: スタート音 + 回転音ループ ──
   playSE('start');
   setTimeout(()=>playSE('rotation',.6),200);
@@ -736,19 +725,19 @@ function fire(){
   // ── ① 時計回りに1つずつ結果確定（上→右→下→左）──
   plateData.forEach((pd,i)=>{
     setTimeout(()=>{
-      // タイマープレートはフラッシュのみ（既に確定済み）
+      let item;
       if(pd.isTimer){
-        const fl=pd.box.querySelector('.p-flash');
-        fl.style.transition='none';fl.style.opacity='.7';
-        setTimeout(()=>{fl.style.transition='opacity .25s';fl.style.opacity='0';},60);
-        pShocks.push({x:pd.ox,y:pd.oy,r:6,a:.8,col:'255,170,60'},{x:pd.ox,y:pd.oy,r:18,a:.5,col:'255,170,60'});
-        coreGlow=Math.min(1,.3+i*.2);
-        playSE(i===n-1?'last':'reveal',.8);
-        return;
+        // タイマープレート: timerEntriesからランダムに1件選択
+        const entries=pd.timerEntries;
+        const entry=entries[Math.floor(Math.random()*entries.length)];
+        const tType=entry.type||'futsuu';
+        pd.timerEntry=entry;
+        item={text:`${entry.seconds}秒`,type:tType};
+      } else {
+        const excludeSet=getExcludeSet(i);
+        item=pickRandomItem(pd.cfg,forceType,excludeSet);
+        excludeSet.add(item.text);
       }
-      const excludeSet=getExcludeSet(i);
-      const item=pickRandomItem(pd.cfg,forceType,excludeSet);
-      excludeSet.add(item.text);
       pd.assignedItem=item;
       pd.lockedType=item.type;
       pd.targetType=item.type;
@@ -802,20 +791,12 @@ function fire(){
         {r:50,a:.7,col:'180,200,255'},{r:80,a:.5,col:'140,180,255'},
         {r:120,a:.35,col:'100,160,255'},{r:180,a:.2,col:'80,140,255'}
       );
-      // ── ③ タイマーモードならTIMER STARTを有効化、そうでなければテロップ表示 ──
+      // ── ③ テロップ表示（多数決で演出レベル決定 + SE）──
       setTimeout(()=>{
-        const hasTimer=plateData.some(pd=>pd.isTimer);
-        if(hasTimer){
-          const btn=document.getElementById('btn-timer');
-          btn.disabled=false;btn.classList.add('ready');
-          busy=false;showingResult=true;
-          document.getElementById('btn-spin').disabled=false;
-        } else {
-          const eff=determineEffectByMajority();
-          if(eff.level===3) playSE('warning',.85);
-          else if(eff.level===2) playSE('caution',.85);
-          playEffect(eff,settings);
-        }
+        const eff=determineEffectByMajority();
+        if(eff.level===3) playSE('warning',.85);
+        else if(eff.level===2) playSE('caution',.85);
+        playEffect(eff,settings);
       },TIMING.POST_SNAP);
     };
   },ALL_REVEALED+TIMING.POST_REVEAL);
@@ -910,6 +891,11 @@ function showResult(eff,settings){
   busy=false;
   showingResult=true;
   document.getElementById('btn-spin').disabled=false;
+  // タイマープレートがあればTIMER STARTを有効化
+  if(plateData.some(pd=>pd.isTimer)){
+    const btn=document.getElementById('btn-timer');
+    btn.disabled=false;btn.classList.add('ready');
+  }
 }
 
 /* ══════════════════════════════════════════════════
@@ -924,6 +910,9 @@ function startTimer(){
   timerLastMilestoneCount=0;
   timerStartTime=performance.now();
   timerActive=true;
+  // テロップを閉じて画面をスッキリさせる
+  clearResultPanel();
+  document.getElementById('screen-vignette').className='';
   playSE('rotation',.6);
   const btn=document.getElementById('btn-timer');
   btn.textContent='STOP / CANCEL';btn.classList.remove('ready');btn.classList.add('running');
