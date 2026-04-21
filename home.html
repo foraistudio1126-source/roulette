@@ -582,6 +582,10 @@ option{background:#0a0a14;}
           </label>
           <div class="toggle-label" id="rehearsal-status">リハーサルモード：OFF</div>
           <div class="rehearsal-idx" id="rehearsal-idx"></div>
+          <label style="display:flex;align-items:center;gap:8px;margin-left:24px;cursor:pointer;">
+            <input type="checkbox" id="rehearsal-badge-cb" onchange="toggleRehearsalBadge()" style="width:14px;height:14px;accent-color:#aa66ff;cursor:pointer;">
+            <span style="font-size:12px;color:#888;letter-spacing:2px;">画面に「REHEARSAL」表示</span>
+          </label>
         </div>
         <div class="rehearsal-note">
           有効にすると、下で設定した順番通りにあたり/普通/外れが出ます。<br>
@@ -611,7 +615,7 @@ const DEFAULT = {
     futsuu:{pct:40,priority:'weak'},
     hazure:{pct:30,priority:'strong'}
   },
-  rehearsal:{enabled:false,sequence:Array(10).fill(null),index:0},
+  rehearsal:{enabled:false,sequence:Array(10).fill(null),index:0,showBadge:true},
   importMapping:{1:'atari',2:'futsuu',3:'hazure'},
   effects:{
     names:{atari:'あたり',futsuu:'普通',hazure:'外れ'},
@@ -1050,9 +1054,12 @@ function applyBulkImport(){
 // ─── REHEARSAL ───
 function loadRehearsalUI(){
   const r = S.rehearsal;
+  if(r.showBadge==null) r.showBadge=true;
   document.getElementById('rehearsal-toggle').checked = r.enabled;
   document.getElementById('rehearsal-status').textContent = 'リハーサルモード：'+(r.enabled?'ON':'OFF');
   document.getElementById('rehearsal-idx').textContent = r.enabled?`現在 ${r.index+1}回目`:'';
+  const badgeCb=document.getElementById('rehearsal-badge-cb');
+  if(badgeCb) badgeCb.checked=!!r.showBadge;
   const grid = document.getElementById('rehearsal-grid');
   grid.innerHTML='';
   const effNames = S.effects?.names || DEFAULT.effects.names;
@@ -1074,6 +1081,11 @@ function toggleRehearsal(){
   S.rehearsal.enabled = document.getElementById('rehearsal-toggle').checked;
   document.getElementById('rehearsal-status').textContent='リハーサルモード：'+(S.rehearsal.enabled?'ON':'OFF');
   document.getElementById('rehearsal-idx').textContent=S.rehearsal.enabled?`現在 ${S.rehearsal.index+1}回目`:'';
+  saveSettings(S);
+}
+
+function toggleRehearsalBadge(){
+  S.rehearsal.showBadge=document.getElementById('rehearsal-badge-cb').checked;
   saveSettings(S);
 }
 
