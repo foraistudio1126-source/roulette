@@ -690,29 +690,34 @@ function fire(){
   const settings=loadSettings();
 
   // ── リハーサル判定 ──
-  // 仕様: forceType が決まったら、全プレートではなく ceil(n/2) 枚だけをそのタイプに固定し
-  //       残りはランダム抽選する。これにより演出（多数決で決まるテロップ）はほぼ目的どおりに
-  //       発生しつつ、プレート内容の見た目は自然な混在になる。
-  let forceType=null;
+  // 仕様: 目標タイプのアイテムを持つプレートの中からランダムに ceil(n/2) 枚選び、
+  //       そのプレートは「目標タイプのアイテムのみ」から抽選する。
+  //       残りは完全ランダム。演出は多数決で自然に決まる（上書きなし）。
+  let rehearsalForcedIndices=new Set(); // circle-position index → forceType
+  let rehearsalForceMap={}; // pos → type
   if(settings.rehearsal&&settings.rehearsal.enabled){
     const idx=(settings.rehearsal.index||0)%10;
     const forced=settings.rehearsal.sequence[idx];
     if(forced!=null&&forced!==''){
-      forceType=forced;
       settings.rehearsal.index=(idx+1)%10;
       saveSettings(settings);
+      const k=Math.ceil(plateData.length/2);
+      // 目標タイプのアイテムを持つプレートの円周位置インデックスを候補にする
+      const candidates=plateData.map((_,pos)=>pos).filter(pos=>{
+        const pd=plateData[pos];
+        if(pd.isTimer) return (pd.timerEntries||[]).some(e=>(e.type||'futsuu')===forced);
+        return (pd.cfg[forced]||[]).length>0;
+      });
+      // candidatesをシャッフルして先頭k枚を強制対象に
+      for(let i=candidates.length-1;i>0;i--){
+        const j=Math.floor(Math.random()*(i+1));
+        [candidates[i],candidates[j]]=[candidates[j],candidates[i]];
+      }
+      candidates.slice(0,k).forEach(pos=>{
+        rehearsalForcedIndices.add(pos);
+        rehearsalForceMap[pos]=forced;
+      });
     }
-  }
-  let rehearsalForcedIndices=new Set();
-  if(forceType){
-    const n=plateData.length;
-    const k=Math.ceil(n/2); // 4枚→2, 5枚→3, 6枚→3, 3枚→2
-    const all=Array.from({length:n},(_,i)=>i);
-    for(let i=all.length-1;i>0;i--){
-      const j=Math.floor(Math.random()*(i+1));
-      [all[i],all[j]]=[all[j],all[i]];
-    }
-    rehearsalForcedIndices=new Set(all.slice(0,k));
   }
 
   // reset plates to outer orbit
@@ -749,11 +754,9 @@ function fire(){
   plateData.forEach((pd,i)=>{
     setTimeout(()=>{
       let item;
-      // このプレートがリハーサル強制対象かどうか
-      const thisForceType=rehearsalForcedIndices.has(i)?forceType:null;
+      const thisForceType=rehearsalForcedIndices.has(i)?rehearsalForceMap[i]:null;
       if(pd.isTimer){
         // タイマープレート: timerEntriesからランダムに1件選択
-        // 強制対象なら該当タイプのエントリに絞る（無ければ全体からランダム）
         const entries=pd.timerEntries;
         let pool=entries;
         if(thisForceType){
