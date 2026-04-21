@@ -430,7 +430,15 @@ function build(){
   document.querySelectorAll('.plate-wrap').forEach(e=>e.remove());
   plateData=[];
   const settings=loadSettings();
-  getAngles(n).forEach((ang,i)=>{
+  // 円周位置 → 設定プレートindex のマッピング
+  // 名詞モード: プレート2 (index 1) に nounMode が付いていれば、円周上の末尾（開示順で最後）に配置
+  let plateOrder=Array.from({length:n},(_,i)=>i);
+  if(n>=2 && settings.plates[1]?.nounMode){
+    // index 1 を末尾へ：[0,2,3,...,n-1,1]
+    plateOrder=[0,...plateOrder.slice(2),1];
+  }
+  getAngles(n).forEach((ang,pos)=>{
+    const i=plateOrder[pos]; // 設定上のプレートindex
     const rawCfg=settings.plates[i]||DEFAULT.plates[i%6];
     const isTimer=!!(rawCfg.timerMode&&(rawCfg.timerEntries||[]).length>0);
     // 共有先が設定されていれば、共有元のアイテムプールを使う
@@ -452,7 +460,7 @@ function build(){
       `<div class="p-text">${allItems.length?allItems[0].text:'—'}</div>`+
       `<div class="p-type">—</div><div class="p-flash"></div>`;
     wrap.appendChild(box);document.body.appendChild(wrap);
-    plateData.push({wrap,box,ox,oy,ix,iy,angle:ang,cfg,allItems,isN,cycleIdx:0,state:'idle',locked:false,lockedType:null,assignedItem:null,isTimer,timerEntry:null,timerEntries:rawCfg.timerEntries||[]});
+    plateData.push({wrap,box,ox,oy,ix,iy,angle:ang,cfg,allItems,isN,cycleIdx:0,state:'idle',locked:false,lockedType:null,assignedItem:null,isTimer,timerEntry:null,timerEntries:rawCfg.timerEntries||[],cfgIdx:i});
   });
   coreGlow=0;
   document.getElementById('rehearsal-badge').className=loadSettings().rehearsal?.enabled?'active':'';
@@ -756,7 +764,7 @@ function fire(){
         pd.timerEntry=entry;
         item={text:`${entry.seconds}秒`,type:tType};
       } else {
-        const excludeSet=getExcludeSet(i);
+        const excludeSet=getExcludeSet(pd.cfgIdx);
         item=pickRandomItem(pd.cfg,thisForceType,excludeSet);
         excludeSet.add(item.text);
       }

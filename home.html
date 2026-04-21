@@ -114,6 +114,12 @@ body::before{content:'';position:fixed;inset:0;
 .share-notice em{color:#3388ff;font-style:normal;font-weight:700;}
 .pill-shared{font-size:9px;color:#3388ff;letter-spacing:1px;margin-top:2px;}
 .pill-timer{font-size:9px;color:#ffaa44;letter-spacing:1px;margin-top:2px;}
+.pill-noun{font-size:9px;color:#88aaff;letter-spacing:1px;margin-top:2px;}
+/* ─── NOUN MODE ─── */
+.noun-mode-row{display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:10px 14px;background:#080812;border:1px solid #1a1a28;border-radius:6px;}
+.noun-mode-cb{width:16px;height:16px;cursor:pointer;accent-color:#88aaff;}
+.noun-mode-lbl{font-size:13px;color:#aaa;letter-spacing:2px;cursor:pointer;}
+.noun-mode-hint{font-size:11px;color:#445;letter-spacing:1px;margin-left:auto;}
 /* ─── TIMER MODE ─── */
 .timer-mode-row{display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:10px 14px;background:#080812;border:1px solid #1a1a28;border-radius:6px;}
 .timer-mode-cb{width:16px;height:16px;cursor:pointer;accent-color:#ffaa44;}
@@ -237,6 +243,51 @@ body::before{content:'';position:fixed;inset:0;
 .prob-total-num.ok{color:#44cc88;}
 .prob-total-num.ng{color:#ff3344;}
 
+/* ─── BULK IMPORT ─── */
+#bulk-import{margin-bottom:24px;border:1px solid #1a1a28;border-radius:8px;overflow:hidden;}
+#bulk-import-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:13px 20px;background:#090912;cursor:pointer;transition:background .2s;user-select:none;}
+#bulk-import-header:hover{background:#0d0d1c;}
+.bulk-import-title{font-size:11px;color:#4488cc;letter-spacing:4px;font-weight:700;}
+.bulk-import-toggle{font-size:11px;color:#2a2a3a;letter-spacing:2px;transition:color .2s;}
+#bulk-import-header:hover .bulk-import-toggle{color:#555;}
+#bulk-import-body{display:none;padding:22px 24px;background:#07070f;}
+.bulk-mapping-grid{display:flex;gap:24px;margin-bottom:20px;flex-wrap:wrap;}
+.bulk-mapping-col{display:flex;flex-direction:column;gap:8px;}
+.bulk-mapping-label{font-size:10px;color:#333;letter-spacing:3px;margin-bottom:4px;}
+.bulk-mapping-row{display:flex;align-items:center;gap:10px;}
+.bulk-num{font-size:20px;color:#99c0ff;font-weight:700;min-width:28px;line-height:1;}
+.bulk-arrow{font-size:12px;color:#2a2a3a;}
+.bulk-map-select{
+  padding:6px 12px;background:#0d0d1c;border:1px solid #1e1e30;border-radius:4px;
+  color:#ccc;font-size:13px;letter-spacing:2px;outline:none;cursor:pointer;}
+.bulk-map-select:focus{border-color:#3388ff;}
+.bulk-paste-wrap{margin-top:4px;}
+.bulk-paste-label{font-size:10px;color:#333;letter-spacing:2px;margin-bottom:8px;}
+.bulk-paste-area{
+  width:100%;height:108px;padding:12px;
+  background:#08080f;border:1px solid #1a1a28;border-radius:4px;
+  color:#ccc;font-size:13px;line-height:1.8;resize:vertical;outline:none;
+  font-family:'Helvetica Neue',Arial,sans-serif;}
+.bulk-paste-area:focus{border-color:#3388ff44;}
+.bulk-paste-area::placeholder{color:#1e1e2e;}
+#bulk-preview{margin-top:14px;}
+.bulk-preview-table{width:100%;border:1px solid #1a1a28;border-radius:6px;overflow:hidden;}
+.bulk-preview-row{display:flex;align-items:center;gap:12px;padding:9px 14px;border-bottom:1px solid #0f0f18;}
+.bulk-preview-row:last-child{border-bottom:none;}
+.bulk-preview-name{font-size:13px;color:#aaa;font-weight:700;letter-spacing:1px;min-width:100px;flex:1;}
+.bulk-preview-counts{display:flex;gap:10px;flex:2;}
+.bpc-atari{color:#ff6677;font-size:12px;letter-spacing:1px;}
+.bpc-futsuu{color:#888;font-size:12px;letter-spacing:1px;}
+.bpc-hazure{color:#66aaff;font-size:12px;letter-spacing:1px;}
+.bulk-preview-target{font-size:11px;color:#333;letter-spacing:1px;white-space:nowrap;}
+.bpt-new{color:#44bb77;}
+.bpt-over{color:#ffaa44;}
+.bulk-skip-note{font-size:11px;color:#2a2a3a;padding:8px 14px;letter-spacing:1px;}
+.bulk-actions{display:flex;gap:12px;margin-top:14px;}
+.bulk-done-msg{font-size:12px;color:#44cc88;margin-top:12px;letter-spacing:1px;}
+
 /* ─── REHEARSAL ─── */
 .rehearsal-toggle-row{display:flex;align-items:center;gap:16px;margin-bottom:32px;}
 .toggle-wrap{display:flex;align-items:center;gap:12px;}
@@ -315,6 +366,56 @@ option{background:#0a0a14;}
         <div class="section-title">プレート設定</div>
         <div class="section-sub">各プレートのジャンルとルーレット項目を設定します</div>
         <div id="plate-indicators"></div>
+
+        <!-- ── まとめてインポート ── -->
+        <div id="bulk-import">
+          <div id="bulk-import-header" onclick="toggleBulkImport()">
+            <span class="bulk-import-title">まとめてインポート</span>
+            <span class="bulk-import-toggle" id="bulk-import-toggle">▼ 開く</span>
+          </div>
+          <div id="bulk-import-body">
+            <div class="bulk-mapping-grid">
+              <div class="bulk-mapping-col">
+                <div class="bulk-mapping-label">番号と種別の対応</div>
+                <div class="bulk-mapping-row">
+                  <span class="bulk-num">①</span><span class="bulk-arrow">→</span>
+                  <select class="bulk-map-select" id="map-1" onchange="saveBulkMapping()">
+                    <option value="atari">あたり</option>
+                    <option value="futsuu">普通</option>
+                    <option value="hazure">外れ</option>
+                  </select>
+                </div>
+                <div class="bulk-mapping-row">
+                  <span class="bulk-num">②</span><span class="bulk-arrow">→</span>
+                  <select class="bulk-map-select" id="map-2" onchange="saveBulkMapping()">
+                    <option value="atari">あたり</option>
+                    <option value="futsuu">普通</option>
+                    <option value="hazure">外れ</option>
+                  </select>
+                </div>
+                <div class="bulk-mapping-row">
+                  <span class="bulk-num">③</span><span class="bulk-arrow">→</span>
+                  <select class="bulk-map-select" id="map-3" onchange="saveBulkMapping()">
+                    <option value="atari">あたり</option>
+                    <option value="futsuu">普通</option>
+                    <option value="hazure">外れ</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="bulk-paste-wrap">
+              <div class="bulk-paste-label">TSV貼り付け（A列: プレート名　B列: ①②③　C列: テキスト）</div>
+              <textarea class="bulk-paste-area" id="bulk-paste"
+                placeholder="スプレッドシートのセルをコピーしてここに貼り付け&#10;&#10;例）&#10;大喜利&#9;①&#9;全力でラップを披露する&#10;大喜利&#9;②&#9;ゆっくり喋る&#10;大喜利&#9;③&#9;無言"></textarea>
+            </div>
+            <div id="bulk-preview"></div>
+            <div class="bulk-actions">
+              <button class="action-btn" onclick="previewBulkImport()">プレビュー確認</button>
+              <button class="action-btn primary" id="bulk-apply-btn" onclick="applyBulkImport()" disabled>インポート実行</button>
+            </div>
+          </div>
+        </div>
+
         <div id="plate-editor">
           <div class="genre-row">
             <div class="genre-label">ジャンル名</div>
@@ -329,6 +430,11 @@ option{background:#0a0a14;}
           <div id="timer-mode-row" class="timer-mode-row" style="display:none">
             <input type="checkbox" class="timer-mode-cb" id="timer-mode-cb" onchange="toggleTimerMode()">
             <label for="timer-mode-cb" class="timer-mode-lbl">時間固定モード</label>
+          </div>
+          <div id="noun-mode-row" class="noun-mode-row" style="display:none">
+            <input type="checkbox" class="noun-mode-cb" id="noun-mode-cb" onchange="toggleNounMode()">
+            <label for="noun-mode-cb" class="noun-mode-lbl">名詞モード</label>
+            <span class="noun-mode-hint">ON時は常に開示順の最後（一番後ろ）に配置</span>
           </div>
           <div id="timer-area" class="timer-area" style="display:none">
             <div class="timer-entry-list" id="timer-entry-list"></div>
@@ -506,6 +612,7 @@ const DEFAULT = {
     hazure:{pct:30,priority:'strong'}
   },
   rehearsal:{enabled:false,sequence:Array(10).fill(null),index:0},
+  importMapping:{1:'atari',2:'futsuu',3:'hazure'},
   effects:{
     names:{atari:'あたり',futsuu:'普通',hazure:'外れ'},
     mode:1
@@ -532,6 +639,7 @@ function openSettings(){
   loadProbUI();
   loadEffectUI();
   loadRehearsalUI();
+  loadBulkMappingUI();
 }
 function closeSettings(){ document.getElementById('settings').classList.remove('open'); }
 
@@ -560,9 +668,11 @@ function renderPlateIndicators(){
         <div class="pill-counts"><span style="color:#ffaa44">${entryCount}パターン</span></div>`;
     } else {
       const srcPl=shared?S.plates[pl.shareWith]:pl;
+      const nounBadge=(i===1&&pl.nounMode&&!shared)?`<div class="pill-noun">📌 名詞モード</div>`:'';
       d.innerHTML=`<div class="pill-label">プレート ${i+1}</div>
         <div class="pill-genre">${pl.genre||'未設定'}</div>
         ${shared?`<div class="pill-shared">↔ プレート${pl.shareWith+1}と共有</div>`:''}
+        ${nounBadge}
         <div class="pill-counts">
           <span class="c-atari">あ:${(srcPl.atari||[]).length}</span>
           <span style="color:#2a2a3a"> / </span>
@@ -594,6 +704,11 @@ function selectPlate(i){
   if(tmRow) tmRow.style.display=isShared?'none':'';
   const tmCb=document.getElementById('timer-mode-cb');
   if(tmCb) tmCb.checked=timerMode;
+  // 名詞モードUI（プレート2専用／共有中は非表示）
+  const nmRow=document.getElementById('noun-mode-row');
+  if(nmRow) nmRow.style.display=(i===1&&!isShared)?'':'none';
+  const nmCb=document.getElementById('noun-mode-cb');
+  if(nmCb) nmCb.checked=!!pl.nounMode;
   // エリア表示制御
   document.getElementById('import-area').style.display=(isShared||timerMode)?'none':'';
   const tmArea=document.getElementById('timer-area');
@@ -623,6 +738,13 @@ function saveShare(){
   S.plates[currentPlate].shareWith=val===''?null:Number(val);
   saveSettings(S);
   selectPlate(currentPlate);
+}
+
+function toggleNounMode(){
+  const cb=document.getElementById('noun-mode-cb');
+  S.plates[currentPlate].nounMode=cb.checked;
+  saveSettings(S);
+  renderPlateIndicators();
 }
 
 function toggleTimerMode(){
@@ -790,6 +912,139 @@ function saveEffects(){
   loadRehearsalUI();
   const btn=event.currentTarget;const orig=btn.textContent;btn.textContent='✓ 保存しました';
   setTimeout(()=>btn.textContent=orig,1500);
+}
+
+// ─── BULK IMPORT ───
+let bulkImportOpen=false;
+let bulkParsed=null;
+
+function toggleBulkImport(){
+  bulkImportOpen=!bulkImportOpen;
+  document.getElementById('bulk-import-body').style.display=bulkImportOpen?'block':'none';
+  document.getElementById('bulk-import-toggle').textContent=bulkImportOpen?'▲ 閉じる':'▼ 開く';
+}
+
+function loadBulkMappingUI(){
+  if(!S.importMapping) S.importMapping={1:'atari',2:'futsuu',3:'hazure'};
+  const m=S.importMapping;
+  document.getElementById('map-1').value=m[1]||'atari';
+  document.getElementById('map-2').value=m[2]||'futsuu';
+  document.getElementById('map-3').value=m[3]||'hazure';
+}
+
+function saveBulkMapping(){
+  if(!S.importMapping) S.importMapping={};
+  S.importMapping[1]=document.getElementById('map-1').value;
+  S.importMapping[2]=document.getElementById('map-2').value;
+  S.importMapping[3]=document.getElementById('map-3').value;
+  saveSettings(S);
+}
+
+function resolveNum(raw,mapping){
+  const s=(raw||'').trim();
+  if(s==='①'||s==='1') return mapping[1]||'atari';
+  if(s==='②'||s==='2') return mapping[2]||'futsuu';
+  if(s==='③'||s==='3') return mapping[3]||'hazure';
+  return null;
+}
+
+function parseBulkTSV(text,mapping){
+  const lines=text.split(/\r?\n/);
+  const plateMap={}; // genre -> {atari,futsuu,hazure}
+  const order=[];
+  let skipped=0;
+  for(const line of lines){
+    if(!line.trim()){continue;}
+    const cols=line.split('\t');
+    if(cols.length<3){skipped++;continue;}
+    const genre=(cols[0]||'').trim();
+    const numRaw=(cols[1]||'').trim();
+    const itemText=(cols[2]||'').trim();
+    if(!genre||!itemText){skipped++;continue;}
+    const type=resolveNum(numRaw,mapping);
+    if(!type){skipped++;continue;} // ヘッダー行 or 未対応番号
+    if(!plateMap[genre]){plateMap[genre]={atari:[],futsuu:[],hazure:[]};order.push(genre);}
+    plateMap[genre][type].push(itemText);
+  }
+  return {plateMap,order,skipped};
+}
+
+function previewBulkImport(){
+  const text=document.getElementById('bulk-paste').value;
+  if(!S.importMapping) S.importMapping={1:'atari',2:'futsuu',3:'hazure'};
+  const {plateMap,order,skipped}=parseBulkTSV(text,S.importMapping);
+  const container=document.getElementById('bulk-preview');
+  const applyBtn=document.getElementById('bulk-apply-btn');
+
+  if(order.length===0){
+    container.innerHTML='<div style="color:#ff4455;font-size:12px;margin-top:12px;letter-spacing:1px;">有効な行が見つかりませんでした。①②③ と3列（プレート名・番号・テキスト）の形式を確認してください。</div>';
+    applyBtn.disabled=true;bulkParsed=null;return;
+  }
+
+  const effNames=S.effects?.names||DEFAULT.effects.names;
+  let html='<div class="bulk-preview-table">';
+  order.forEach(genre=>{
+    const p=plateMap[genre];
+    const existIdx=S.plates.findIndex(pl=>pl.genre===genre);
+    const isExist=existIdx!==-1;
+    // 新規の場合：空きスロット（items全ゼロ）を探す
+    const emptyIdx=!isExist?S.plates.findIndex(pl=>
+      !pl.atari?.length&&!pl.futsuu?.length&&!pl.hazure?.length&&pl.genre&&!order.slice(0,order.indexOf(genre)).find(g=>S.plates.findIndex(p2=>p2.genre===g)===-1&&g!==genre)):(-1);
+    const canAdd=!isExist&&(S.plates.some(pl=>!pl.atari?.length&&!pl.futsuu?.length&&!pl.hazure?.length));
+    const targetLabel=isExist
+      ?`プレート${existIdx+1} 上書き`
+      :(canAdd?'<span class="bpt-new">新規スロットへ</span>':'<span class="bpt-over">⚠ 空きなし — スキップ</span>');
+    html+=`<div class="bulk-preview-row">
+      <span class="bulk-preview-name">${genre}</span>
+      <span class="bulk-preview-counts">
+        ${p.atari.length?`<span class="bpc-atari">${effNames.atari}×${p.atari.length}</span>`:''}
+        ${p.futsuu.length?`<span class="bpc-futsuu">${effNames.futsuu}×${p.futsuu.length}</span>`:''}
+        ${p.hazure.length?`<span class="bpc-hazure">${effNames.hazure}×${p.hazure.length}</span>`:''}
+      </span>
+      <span class="bulk-preview-target">${targetLabel}</span>
+    </div>`;
+  });
+  if(skipped>0) html+=`<div class="bulk-skip-note">※ ${skipped}行をスキップ（形式不一致・空白行など）</div>`;
+  html+='</div>';
+  container.innerHTML=html;
+  applyBtn.disabled=false;
+  bulkParsed={plateMap,order};
+}
+
+function applyBulkImport(){
+  if(!bulkParsed) return;
+  const {plateMap,order}=bulkParsed;
+  order.forEach(genre=>{
+    const p=plateMap[genre];
+    const existIdx=S.plates.findIndex(pl=>pl.genre===genre);
+    if(existIdx!==-1){
+      // 既存プレートを上書き
+      S.plates[existIdx].atari=p.atari;
+      S.plates[existIdx].futsuu=p.futsuu;
+      S.plates[existIdx].hazure=p.hazure;
+    } else {
+      // 空きスロット（items全ゼロ）に新規追加
+      const emptyIdx=S.plates.findIndex(pl=>!pl.atari?.length&&!pl.futsuu?.length&&!pl.hazure?.length);
+      if(emptyIdx!==-1){
+        S.plates[emptyIdx].genre=genre;
+        S.plates[emptyIdx].atari=p.atari;
+        S.plates[emptyIdx].futsuu=p.futsuu;
+        S.plates[emptyIdx].hazure=p.hazure;
+      }
+      // 空きなし → スキップ
+    }
+  });
+  // plateCount: コンテンツのある最後のインデックス+1（最大6）
+  let lastUsed=0;
+  S.plates.forEach((pl,i)=>{if(pl.atari?.length||pl.futsuu?.length||pl.hazure?.length)lastUsed=i;});
+  S.plateCount=Math.min(lastUsed+1,6);
+  saveSettings(S);
+  renderPlateIndicators();
+  selectPlate(0);
+  document.getElementById('bulk-paste').value='';
+  document.getElementById('bulk-preview').innerHTML='<div class="bulk-done-msg">✓ インポートが完了しました</div>';
+  document.getElementById('bulk-apply-btn').disabled=true;
+  bulkParsed=null;
 }
 
 // ─── REHEARSAL ───
