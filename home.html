@@ -81,10 +81,26 @@ body::before{content:'';position:fixed;inset:0;
 #settings-content::-webkit-scrollbar-track{background:#0a0a14;}
 #settings-content::-webkit-scrollbar-thumb{background:#2a2a3a;border-radius:2px;}
 
-.section-title{font-size:22px;font-weight:700;letter-spacing:4px;margin-bottom:6px;}
+.section-title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.section-title{font-size:22px;font-weight:700;letter-spacing:4px;}
 .section-sub{font-size:13px;color:#444;letter-spacing:2px;margin-bottom:32px;}
 .section-page{display:none;}
 .section-page.active{display:block;}
+
+/* ─── PLATE HEADER BUTTONS ─── */
+.plate-header-btns{display:flex;align-items:center;gap:8px;}
+.plate-hist-btn{
+  width:34px;height:34px;border:1px solid #1e1e30;background:#0d0d1c;
+  border-radius:5px;color:#555;font-size:15px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .2s;user-select:none;}
+.plate-hist-btn:hover:not(:disabled){border-color:#3388ff;color:#88aaff;background:rgba(51,136,255,0.08);}
+.plate-hist-btn:disabled{opacity:.25;cursor:default;}
+.plate-reset-btn{
+  padding:8px 16px;border:1px solid #331a1a;background:#0d0a0a;
+  border-radius:5px;color:#664444;font-size:11px;letter-spacing:3px;cursor:pointer;
+  transition:all .2s;white-space:nowrap;}
+.plate-reset-btn:hover{border-color:#ff3344;color:#ff6677;background:rgba(255,51,68,0.08);}
 
 /* ─── PLATE SETTINGS ─── */
 #plate-indicators{display:flex;gap:12px;margin-bottom:32px;flex-wrap:wrap;}
@@ -363,7 +379,14 @@ option{background:#0a0a14;}
 
       <!-- ── プレート設定 ── -->
       <div class="section-page active" id="page-plates">
-        <div class="section-title">プレート設定</div>
+        <div class="section-title-row">
+          <div class="section-title">プレート設定</div>
+          <div class="plate-header-btns">
+            <button class="plate-hist-btn" id="hist-undo" title="元に戻す" onclick="plateHistUndo()" disabled>←</button>
+            <button class="plate-hist-btn" id="hist-redo" title="やり直し" onclick="plateHistRedo()" disabled>→</button>
+            <button class="plate-reset-btn" onclick="resetCurrentPlate()">RESET</button>
+          </div>
+        </div>
         <div class="section-sub">各プレートのジャンルとルーレット項目を設定します</div>
         <div id="plate-indicators"></div>
 
@@ -628,15 +651,66 @@ function loadSettings(){
   try{ return JSON.parse(localStorage.getItem('tvmagnet'))||DEFAULT; }
   catch(e){ return DEFAULT; }
 }
-function saveSettings(s){ localStorage.setItem('tvmagnet',JSON.stringify(s)); }
+function saveSettings(s){
+  // プレート変更を検出してヒストリーに積む
+  const prev=_plateHistStack[_plateHistIdx];
+  const cur=JSON.stringify(s.plates);
+  if(prev!==cur){
+    _plateHistStack=_plateHistStack.slice(0,_plateHistIdx+1);
+    _plateHistStack.push(cur);
+    if(_plateHistStack.length>50) _plateHistStack.shift();
+    _plateHistIdx=_plateHistStack.length-1;
+    _updateHistBtns();
+  }
+  localStorage.setItem('tvmagnet',JSON.stringify(s));
+}
 function getSettings(){ return loadSettings(); }
 
 let S = loadSettings();
 let currentPlate = 0; // 0-indexed
 
+// ─── PLATE HISTORY ───
+let _plateHistStack=[JSON.stringify(S.plates)];
+let _plateHistIdx=0;
+
+function _updateHistBtns(){
+  const u=document.getElementById('hist-undo');
+  const r=document.getElementById('hist-redo');
+  if(u) u.disabled=_plateHistIdx<=0;
+  if(r) r.disabled=_plateHistIdx>=_plateHistStack.length-1;
+}
+function _restorePlateHist(){
+  S.plates=JSON.parse(_plateHistStack[_plateHistIdx]);
+  localStorage.setItem('tvmagnet',JSON.stringify(S));
+  renderPlateIndicators();
+  selectPlate(currentPlate);
+  _updateHistBtns();
+}
+function plateHistUndo(){
+  if(_plateHistIdx<=0) return;
+  _plateHistIdx--;
+  _restorePlateHist();
+}
+function plateHistRedo(){
+  if(_plateHistIdx>=_plateHistStack.length-1) return;
+  _plateHistIdx++;
+  _restorePlateHist();
+}
+function resetCurrentPlate(){
+  if(!confirm(`プレート${currentPlate+1}の設定をリセットします。よろしいですか？`)) return;
+  S.plates[currentPlate]=JSON.parse(JSON.stringify(DEFAULT.plates[currentPlate%6]));
+  saveSettings(S);
+  renderPlateIndicators();
+  selectPlate(currentPlate);
+}
+
 // ─── SETTINGS OPEN/CLOSE ───
 function openSettings(){
   S = loadSettings();
+  // ヒストリーをリセット（設定を開くたびに現在状態を起点にする）
+  _plateHistStack=[JSON.stringify(S.plates)];
+  _plateHistIdx=0;
+  _updateHistBtns();
   document.getElementById('settings').classList.add('open');
   renderPlateIndicators();
   selectPlate(0);
