@@ -756,14 +756,24 @@ function fire(){
       let item;
       const thisForceType=rehearsalForcedIndices.has(i)?rehearsalForceMap[i]:null;
       if(pd.isTimer){
-        // タイマープレート: timerEntriesからランダムに1件選択
+        // タイマープレート: 固定順 or ランダムに1件選択
         const entries=pd.timerEntries;
         let pool=entries;
         if(thisForceType){
           const matching=entries.filter(e=>(e.type||'futsuu')===thisForceType);
           if(matching.length) pool=matching;
         }
-        const entry=pool[Math.floor(Math.random()*pool.length)];
+        let entry;
+        const rawCfg=settings.plates[pd.cfgIdx]||{};
+        if(rawCfg.timerFixed && pool===entries){
+          // 順番固定モード（リハーサル強制なし時のみ）
+          const idx=(rawCfg.timerFixedIdx||0)%entries.length;
+          entry=entries[idx];
+          settings.plates[pd.cfgIdx].timerFixedIdx=idx+1;
+          saveSettings(settings);
+        } else {
+          entry=pool[Math.floor(Math.random()*pool.length)];
+        }
         const tType=entry.type||'futsuu';
         pd.timerEntry=entry;
         item={text:`${entry.seconds}秒`,type:tType};

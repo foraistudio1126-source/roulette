@@ -158,6 +158,12 @@ body::before{content:'';position:fixed;inset:0;
 .timer-delete:hover{border-color:#ff334455;color:#ff6677;}
 .timer-add-btn{width:100%;padding:10px;border:1px dashed #2a2a3a;background:transparent;color:#555;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:4px;transition:all .2s;margin-top:4px;}
 .timer-add-btn:hover{border-color:#ffaa4466;color:#ffcc66;}
+.timer-fixed-row{display:flex;align-items:center;gap:12px;margin-top:14px;padding:10px 14px;background:#0c100a;border:1px solid #1e2a1a;border-radius:6px;}
+.timer-fixed-cb{width:15px;height:15px;cursor:pointer;accent-color:#66cc44;}
+.timer-fixed-lbl{font-size:13px;color:#aaa;letter-spacing:2px;cursor:pointer;flex:1;}
+.timer-fixed-idx{font-size:11px;color:#557744;letter-spacing:1px;}
+.timer-fixed-reset{padding:5px 12px;border:1px solid #2a3a1e;background:transparent;color:#557744;font-size:10px;letter-spacing:2px;cursor:pointer;border-radius:3px;transition:all .2s;}
+.timer-fixed-reset:hover{border-color:#66cc44;color:#88ee55;}
 .genre-label{font-size:13px;color:#555;letter-spacing:3px;min-width:80px;}
 .genre-input{
   flex:1;padding:10px 16px;background:#08080f;border:1px solid #1e1e30;border-radius:4px;
@@ -463,6 +469,12 @@ option{background:#0a0a14;}
           <div id="timer-area" class="timer-area" style="display:none">
             <div class="timer-entry-list" id="timer-entry-list"></div>
             <button class="timer-add-btn" onclick="addTimerEntry()">＋ 時間を追加</button>
+            <div class="timer-fixed-row">
+              <input type="checkbox" class="timer-fixed-cb" id="timer-fixed-cb" onchange="toggleTimerFixed()">
+              <label for="timer-fixed-cb" class="timer-fixed-lbl">順番を固定する</label>
+              <span class="timer-fixed-idx" id="timer-fixed-idx"></span>
+              <button class="timer-fixed-reset" onclick="resetTimerFixedIdx()">リセット</button>
+            </div>
           </div>
           <div id="import-area">
           <div class="import-grid">
@@ -803,7 +815,7 @@ function selectPlate(i){
     notice.style.display='none';
   }
   // タイマーエントリー描画
-  if(!isShared&&timerMode){ renderTimerEntries(); return; }
+  if(!isShared&&timerMode){ renderTimerEntries(); _updateTimerFixedUI(); return; }
   // 通常インポート
   ['atari','futsuu','hazure'].forEach(type=>{
     document.getElementById('count-'+type).textContent = (pl[type]||[]).length+'件';
@@ -888,6 +900,33 @@ function saveTimerType(idx,sel){
   S.plates[currentPlate].timerEntries[idx].type=sel.value;
   sel.className='timer-type-select t-'+sel.value;
   saveSettings(S);
+}
+
+function toggleTimerFixed(){
+  const cb=document.getElementById('timer-fixed-cb');
+  S.plates[currentPlate].timerFixed=cb.checked;
+  if(cb.checked && S.plates[currentPlate].timerFixedIdx==null) S.plates[currentPlate].timerFixedIdx=0;
+  saveSettings(S); _updateTimerFixedUI();
+}
+
+function resetTimerFixedIdx(){
+  S.plates[currentPlate].timerFixedIdx=0;
+  saveSettings(S); _updateTimerFixedUI();
+}
+
+function _updateTimerFixedUI(){
+  const pl=S.plates[currentPlate];
+  const cb=document.getElementById('timer-fixed-cb');
+  const idxEl=document.getElementById('timer-fixed-idx');
+  if(!cb) return;
+  cb.checked=!!pl.timerFixed;
+  if(pl.timerFixed){
+    const total=(pl.timerEntries||[]).length;
+    const cur=total>0?(((pl.timerFixedIdx||0)%total)+1):0;
+    if(idxEl) idxEl.textContent=total>0?`次: ${cur}/${total}`:'';
+  } else {
+    if(idxEl) idxEl.textContent='';
+  }
 }
 
 function saveGenre(){
