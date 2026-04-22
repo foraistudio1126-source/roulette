@@ -763,17 +763,7 @@ function fire(){
           const matching=entries.filter(e=>(e.type||'futsuu')===thisForceType);
           if(matching.length) pool=matching;
         }
-        let entry;
-        const rawCfg=settings.plates[pd.cfgIdx]||{};
-        if(rawCfg.timerFixed && pool===entries){
-          // 順番固定モード（リハーサル強制なし時のみ）
-          const idx=(rawCfg.timerFixedIdx||0)%entries.length;
-          entry=entries[idx];
-          settings.plates[pd.cfgIdx].timerFixedIdx=idx+1;
-          saveSettings(settings);
-        } else {
-          entry=pool[Math.floor(Math.random()*pool.length)];
-        }
+        const entry=pool[Math.floor(Math.random()*pool.length)];
         const tType=entry.type||'futsuu';
         pd.timerEntry=entry;
         item={text:`${entry.seconds}秒`,type:tType};

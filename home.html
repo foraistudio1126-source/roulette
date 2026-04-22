@@ -158,12 +158,9 @@ body::before{content:'';position:fixed;inset:0;
 .timer-delete:hover{border-color:#ff334455;color:#ff6677;}
 .timer-add-btn{width:100%;padding:10px;border:1px dashed #2a2a3a;background:transparent;color:#555;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:4px;transition:all .2s;margin-top:4px;}
 .timer-add-btn:hover{border-color:#ffaa4466;color:#ffcc66;}
-.timer-fixed-row{display:flex;align-items:center;gap:12px;margin-top:14px;padding:10px 14px;background:#0c100a;border:1px solid #1e2a1a;border-radius:6px;}
-.timer-fixed-cb{width:15px;height:15px;cursor:pointer;accent-color:#66cc44;}
-.timer-fixed-lbl{font-size:13px;color:#aaa;letter-spacing:2px;cursor:pointer;flex:1;}
-.timer-fixed-idx{font-size:11px;color:#557744;letter-spacing:1px;}
-.timer-fixed-reset{padding:5px 12px;border:1px solid #2a3a1e;background:transparent;color:#557744;font-size:10px;letter-spacing:2px;cursor:pointer;border-radius:3px;transition:all .2s;}
-.timer-fixed-reset:hover{border-color:#66cc44;color:#88ee55;}
+.plate-pill{cursor:grab;}
+.plate-pill.dragging{opacity:.35;border-style:dashed;cursor:grabbing;}
+.plate-pill.drag-over{border-color:#66aaff;background:rgba(51,136,255,0.14);box-shadow:0 0 12px rgba(51,136,255,0.3);}
 .genre-label{font-size:13px;color:#555;letter-spacing:3px;min-width:80px;}
 .genre-input{
   flex:1;padding:10px 16px;background:#08080f;border:1px solid #1e1e30;border-radius:4px;
@@ -469,12 +466,6 @@ option{background:#0a0a14;}
           <div id="timer-area" class="timer-area" style="display:none">
             <div class="timer-entry-list" id="timer-entry-list"></div>
             <button class="timer-add-btn" onclick="addTimerEntry()">＋ 時間を追加</button>
-            <div class="timer-fixed-row">
-              <input type="checkbox" class="timer-fixed-cb" id="timer-fixed-cb" onchange="toggleTimerFixed()">
-              <label for="timer-fixed-cb" class="timer-fixed-lbl">順番を固定する</label>
-              <span class="timer-fixed-idx" id="timer-fixed-idx"></span>
-              <button class="timer-fixed-reset" onclick="resetTimerFixedIdx()">リセット</button>
-            </div>
           </div>
           <div id="import-area">
           <div class="import-grid">
@@ -745,10 +736,64 @@ function showSection(id){
 function renderPlateIndicators(){
   const wrap = document.getElementById('plate-indicators');
   wrap.innerHTML='';
+  let dragSrc=null;
   S.plates.forEach((pl,i)=>{
     const d = document.createElement('div');
     d.className='plate-pill'+(i===currentPlate?' active':'');
-    d.onclick=()=>selectPlate(i);
+    d.draggable=true;
+    d.dataset.idx=i;
+    // クリック（ドラッグと区別するため mousedown/mouseup で判定）
+    let didDrag=false;
+    d.addEventListener('mousedown',()=>{didDrag=false;});
+    d.addEventListener('mousemove',()=>{didDrag=true;});
+    d.addEventListener('mouseup',()=>{ if(!didDrag) selectPlate(i); });
+    // ドラッグ
+    d.addEventListener('dragstart',e=>{
+      dragSrc=i;
+      e.dataTransfer.effectAllowed='move';
+      setTimeout(()=>d.classList.add('dragging'),0);
+    });
+    d.addEventListener('dragend',()=>{
+      d.classList.remove('dragging');
+      wrap.querySelectorAll('.plate-pill').forEach(p=>p.classList.remove('drag-over'));
+    });
+    d.addEventListener('dragover',e=>{
+      e.preventDefault();
+      e.dataTransfer.dropEffect='move';
+      if(dragSrc!==i) d.classList.add('drag-over');
+    });
+    d.addEventListener('dragleave',()=>d.classList.remove('drag-over'));
+    d.addEventListener('drop',e=>{
+      e.preventDefault();
+      if(dragSrc===null||dragSrc===i) return;
+      // S.plates を並び替え
+      const moved=S.plates.splice(dragSrc,1)[0];
+      S.plates.splice(i,0,moved);
+      // shareWith インデックスを修正
+      const oldToNew=[];
+      // 元の位置→新しい位置マップを再計算（splice後なので直接計算）
+      // simpleに: 全プレートのshareWithを再マッピング
+      const origOrder=Array.from({length:S.plates.length+1},(_,k)=>k);
+      // dragSrc→drop先へ移動したので、各インデックスがどう変わったかを算出
+      function remapIdx(old){
+        if(old===dragSrc) return i<dragSrc?i:i; // 移動したプレート自身
+        if(dragSrc<i){ // 左→右
+          if(old>dragSrc&&old<=i) return old-1;
+        } else { // 右→左
+          if(old>=i&&old<dragSrc) return old+1;
+        }
+        return old;
+      }
+      S.plates.forEach(p=>{
+        if(p.shareWith!=null) p.shareWith=remapIdx(p.shareWith);
+      });
+      // currentPlate を追従
+      currentPlate=remapIdx(currentPlate===dragSrc?i:currentPlate);
+      saveSettings(S);
+      renderPlateIndicators();
+      selectPlate(currentPlate);
+      dragSrc=null;
+    });
     const shared=pl.shareWith!=null;
     const timerMode=!!pl.timerMode&&!shared;
     if(timerMode){
@@ -815,7 +860,7 @@ function selectPlate(i){
     notice.style.display='none';
   }
   // タイマーエントリー描画
-  if(!isShared&&timerMode){ renderTimerEntries(); _updateTimerFixedUI(); return; }
+  if(!isShared&&timerMode){ renderTimerEntries(); return; }
   // 通常インポート
   ['atari','futsuu','hazure'].forEach(type=>{
     document.getElementById('count-'+type).textContent = (pl[type]||[]).length+'件';
@@ -902,32 +947,6 @@ function saveTimerType(idx,sel){
   saveSettings(S);
 }
 
-function toggleTimerFixed(){
-  const cb=document.getElementById('timer-fixed-cb');
-  S.plates[currentPlate].timerFixed=cb.checked;
-  if(cb.checked && S.plates[currentPlate].timerFixedIdx==null) S.plates[currentPlate].timerFixedIdx=0;
-  saveSettings(S); _updateTimerFixedUI();
-}
-
-function resetTimerFixedIdx(){
-  S.plates[currentPlate].timerFixedIdx=0;
-  saveSettings(S); _updateTimerFixedUI();
-}
-
-function _updateTimerFixedUI(){
-  const pl=S.plates[currentPlate];
-  const cb=document.getElementById('timer-fixed-cb');
-  const idxEl=document.getElementById('timer-fixed-idx');
-  if(!cb) return;
-  cb.checked=!!pl.timerFixed;
-  if(pl.timerFixed){
-    const total=(pl.timerEntries||[]).length;
-    const cur=total>0?(((pl.timerFixedIdx||0)%total)+1):0;
-    if(idxEl) idxEl.textContent=total>0?`次: ${cur}/${total}`:'';
-  } else {
-    if(idxEl) idxEl.textContent='';
-  }
-}
 
 function saveGenre(){
   S.plates[currentPlate].genre = document.getElementById('genre-input').value.trim()||`プレート${currentPlate+1}`;
