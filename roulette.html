@@ -349,30 +349,55 @@ let timerActive=false,timerStartTime=0,timerDuration=0,timerMilestone=0,timerLas
 /* ══════════════════════════════════════════════════
    AUDIO (プリロード + 再生)
    ══════════════════════════════════════════════════ */
-const SE={
-  start:   new Audio('se/se_start.mp3'),
-  rotation:new Audio('se/se_rotation.mp3'),
-  reveal:  new Audio('se/se_reveal.mp3'),
-  last:    new Audio('se/se_last.mp3'),
-  snap:    new Audio('se/se_snap.mp3'),
-  caution: new Audio('se/se_result_caution.mp3'),
-  warning: new Audio('se/se_result_warning.mp3'),
-  sparks:  new Audio('se/se_sparks.mp3')
-};
-SE.rotation.loop=true;
-Object.values(SE).forEach(a=>{a.preload='auto';a.load();});
+// ── Web Audio API SE system ──
+const _actx=new(window.AudioContext||window.webkitAudioContext)();
+const _bufs={};
+let _rotNode=null,_rotGain=null;
+
+// iOS: AudioContextをユーザー操作で解放
+function _unlockAudio(){if(_actx.state==='suspended')_actx.resume();}
+['click','touchstart'].forEach(ev=>document.addEventListener(ev,_unlockAudio,{passive:true}));
+
+// 起動時に全SE先読み
+(async function(){
+  const files={start:'se/se_start.mp3',rotation:'se/se_rotation.mp3',reveal:'se/se_reveal.mp3',
+    last:'se/se_last.mp3',snap:'se/se_snap.mp3',caution:'se/se_result_caution.mp3',
+    warning:'se/se_result_warning.mp3',sparks:'se/se_sparks.mp3'};
+  await Promise.all(Object.entries(files).map(async([key,url])=>{
+    try{const r=await fetch(url);const ab=await r.arrayBuffer();_bufs[key]=await _actx.decodeAudioData(ab);}catch(e){}
+  }));
+})();
 
 function playSE(key,vol){
-  const a=SE[key];if(!a)return;
-  a.currentTime=0;a.volume=vol??1;
-  a.play().catch(()=>{});
+  _unlockAudio();
+  const buf=_bufs[key];if(!buf)return;
+  const src=_actx.createBufferSource();
+  src.buffer=buf;
+  const gain=_actx.createGain();
+  gain.gain.value=vol??1;
+  src.connect(gain);gain.connect(_actx.destination);
+  if(key==='rotation'){
+    if(_rotNode){try{_rotNode.stop();}catch(e){}} // 旧ノード強制停止
+    src.loop=true;src.start();
+    _rotNode=src;_rotGain=gain;
+  }else{
+    src.start();
+  }
 }
 function stopSE(key,fadeMs){
-  const a=SE[key];if(!a)return;
-  if(fadeMs){
-    const step=a.volume/(fadeMs/20);
-    const iv=setInterval(()=>{a.volume=Math.max(0,a.volume-step);if(a.volume<=0){clearInterval(iv);a.pause();a.currentTime=0;a.volume=1;}},20);
-  }else{a.pause();a.currentTime=0;}
+  if(key==='rotation'){
+    if(!_rotNode)return;
+    if(fadeMs){
+      const now=_actx.currentTime;
+      _rotGain.gain.setValueAtTime(_rotGain.gain.value,now);
+      _rotGain.gain.linearRampToValueAtTime(0,now+fadeMs/1000);
+      const n=_rotNode;setTimeout(()=>{try{n.stop();}catch(e){}},fadeMs+50);
+      _rotNode=null;_rotGain=null;
+    }else{
+      try{_rotNode.stop();}catch(e){}_rotNode=null;_rotGain=null;
+    }
+  }
+  // 単発音は自然に終了するため何もしない
 }
 
 /* ══════════════════════════════════════════════════
@@ -665,7 +690,7 @@ function resetToOrbit(){
   const tb=document.getElementById('btn-timer');
   if(tb){tb.disabled=true;tb.classList.remove('ready','running');tb.textContent='TIMER START';}
   // SE全停止
-  Object.keys(SE).forEach(k=>stopSE(k));
+  stopSE('rotation');
   document.getElementById('screen-vignette').className='';
   setTimeout(()=>{
     resetting=false;
