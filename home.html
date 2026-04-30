@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TV MAGNET</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -341,6 +342,85 @@ option{background:#0a0a14;}
 .action-btn.primary{border-color:#3388ff;color:#66aaff;}
 .action-btn.primary:hover{background:rgba(51,136,255,0.1);}
 .rehearsal-idx{font-size:13px;color:#444;letter-spacing:2px;}
+
+/* ─── MOBILE RESPONSIVE ─── */
+@media(max-width:959px){
+  html,body{width:100%!important;height:auto!important;overflow:auto!important;transform:none!important;}
+  body{transform:none!important;}
+
+  /* home screen */
+  #home{position:relative;min-height:100vh;padding:40px 20px;}
+  #home-title{font-size:28px;letter-spacing:8px;}
+  #home-sub{font-size:11px;letter-spacing:4px;margin-bottom:32px;}
+  .mode-card{width:100%;max-width:480px;height:auto;padding:36px 24px;}
+  .card-name{font-size:32px;}
+  .card-desc{font-size:13px;}
+  .card-start{padding:12px 36px;font-size:13px;letter-spacing:3px;}
+  #gear-btn{top:16px;right:16px;width:44px;height:44px;}
+
+  /* settings overlay */
+  #settings{position:fixed!important;inset:0;}
+  #settings-panel{
+    width:100%!important;height:100%!important;
+    max-width:100%!important;max-height:100%!important;
+    margin:0!important;border-radius:0!important;
+    flex-direction:column!important;overflow:hidden;}
+
+  /* nav → horizontal tabs */
+  #settings-nav{
+    width:100%!important;min-width:0!important;
+    flex-direction:row!important;overflow-x:auto!important;
+    padding:0!important;height:auto!important;
+    border-right:none!important;border-bottom:1px solid #1a1a28;
+    gap:0!important;flex-shrink:0!important;}
+  .nav-section{display:none!important;}
+  .nav-item{
+    padding:14px 20px;white-space:nowrap;
+    border-left:none!important;border-bottom:2px solid transparent;
+    font-size:13px;}
+  .nav-item.active{border-bottom-color:#3388ff!important;background:rgba(51,136,255,0.06);}
+  #settings-close{margin-top:0;order:99;margin-left:auto;}
+
+  /* content */
+  #settings-content{flex:1;overflow-y:auto;padding:20px 16px;}
+
+  /* plates */
+  #plate-indicators{gap:8px;}
+  .plate-pill{min-width:0;flex:1;max-width:none;padding:10px 12px;}
+  .pill-genre{font-size:13px;}
+  .section-title-row{flex-wrap:wrap;gap:10px;}
+
+  /* import grid → single column */
+  .import-grid{grid-template-columns:1fr!important;}
+
+  /* import textarea */
+  .import-textarea{min-height:100px;}
+
+  /* bulk import */
+  .bulk-mapping-grid{flex-direction:column!important;}
+  .bulk-paste-area{min-height:80px;}
+
+  /* timer */
+  .timer-entry{flex-wrap:wrap;gap:8px;}
+
+  /* rehearsal grid */
+  .rehearsal-grid{grid-template-columns:repeat(5,1fr)!important;}
+
+  /* genre input row */
+  .genre-row{flex-wrap:wrap;}
+
+  /* share row */
+  .share-row{flex-wrap:wrap;}
+
+  /* effects */
+  .effect-row{flex-direction:column;align-items:flex-start!important;gap:8px!important;}
+
+  /* buttons - larger touch targets */
+  .plate-hist-btn{width:44px;height:44px;font-size:18px;}
+  .plate-reset-btn{padding:10px 18px;}
+  .card-start,.action-btn{min-height:44px;}
+  select,input[type=text],input[type=number]{min-height:40px;}
+}
 </style>
 </head>
 <body>
@@ -1242,10 +1322,21 @@ document.addEventListener('change',e=>{
 <script>
 (function(){
   function fit(){
-    var s=Math.min(window.innerWidth/1920,window.innerHeight/1080);
-    document.body.style.transform="scale("+s+")";
-    document.body.style.transformOrigin="top left";
-    document.documentElement.style.overflow="hidden";
+    if(window.innerWidth<960){
+      // モバイル: スケールなし、ネイティブスクロール
+      document.body.style.transform='none';
+      document.body.style.width='';
+      document.body.style.height='';
+      document.documentElement.style.overflow='auto';
+    } else {
+      // デスクトップ/TV: 1920px固定スケール
+      var s=Math.min(window.innerWidth/1920,window.innerHeight/1080);
+      document.body.style.transform="scale("+s+")";
+      document.body.style.transformOrigin="top left";
+      document.body.style.width='1920px';
+      document.body.style.height='1080px';
+      document.documentElement.style.overflow="hidden";
+    }
   }
   fit(); window.addEventListener("resize",fit);
 })();
