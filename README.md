@@ -4,7 +4,7 @@
 
 ## ローカル確認
 
-単純な静的サイトなので、ブラウザで [index.html](/Users/anrakukentarou/Desktop/TV magnet/index.html) を直接開けば確認できます。
+単純な静的サイトなので、ブラウザで `index.html` を直接開けば確認できます。
 
 ## GitHub へ公開
 
